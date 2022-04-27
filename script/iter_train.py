@@ -4,7 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser('the main to train model')
 parser.add_argument('--config_file',type=str,required=True)
-parser.add_argument('--cuda',type=int,default='cpu',required=False)
+parser.add_argument('--cuda',type=str,default=0,required=False)
 parser.add_argument("--kfold_index",type=int,default=1,required=False)
 args = parser.parse_args()
 

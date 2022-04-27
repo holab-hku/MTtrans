@@ -16,6 +16,9 @@ from sklearn.preprocessing import StandardScaler
 # read csv and load in to a dictionary
 Ex_data_dir = utils.data_dir
 csv_path_ls = [os.path.join(Ex_data_dir,csv) for csv in ['GSM3130435_egfp_unmod_1.csv','GSM3130443_designed_library.csv','GSM4084997_varying_length_25to100.csv']]
+for path in csv_path_ls:
+    assert os.path.exists(path), f"The file {path} is not properly downloaded"
+
 df_dict = {
   csv_path.split("_")[-1].replace(".csv","") : pd.read_csv(csv_path,low_memory=False)  for csv_path in csv_path_ls
            }
@@ -98,7 +101,10 @@ e_train.to_csv(os.path.join(Ex_data_dir,"MPA_V_train_val.csv"),index=False)
 
 sub.to_csv(os.path.join(Ex_data_dir,"MPA_H_test.csv"),index=False)
 remaining.to_csv(os.path.join(Ex_data_dir,"MPA_H_train_val.csv"),index=False)
+
+# sub sample MPA-H
 remaining.sample(frac=0.1).to_csv(os.path.join(Ex_data_dir,"SubMPA_H_train_val.csv"),index=False)
+sub.to_csv(os.path.join(Ex_data_dir,"SubMPA_H_test.csv"),index=False) 
 
 test_df.to_csv(os.path.join(Ex_data_dir,"MPA_U_test.csv"),index=False)
 train_val_df.to_csv(os.path.join(Ex_data_dir,"MPA_U_train_val.csv"),index=False)

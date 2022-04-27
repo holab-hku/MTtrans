@@ -1,4 +1,4 @@
-name: pytorch
+name: MTtrans
 channels:
   - pytorch
   - bioconda
@@ -196,4 +196,3 @@ dependencies:
     - wrapt==1.12.1
     - yapf==0.31.0
     - zipp==3.6.0
-prefix: /ssd/users/wergillius/.conda/envs/pytorch

@@ -13,10 +13,15 @@ RP_data_path['293T'] = pj('df_counts_and_len.TE_sorted.HEK_Andrev2015.with_annot
 RP_data_path['muscle'] = pj('df_counts_and_len.TE_sorted.Muscle.with_annot.txt')
 RP_data_path['PC3'] = pj('df_counts_and_len.TE_sorted.pc3.with_annot.txt')
 
-for cell_line in RP_data_path.keys():
+
+
+for cell_line, csv_path in RP_data_path.items():
+
+    assert os.path.exists(csv_path), f"The raw data file for {cell_line} does not exist!"
+    
     print(f"processing {cell_line}...\n")
-    UTR_csv = pd.read_csv(pj(f"RP_{cell_line}_last100bp_5UTR.csv"),index_col=0)
-    RP_raw_data = pd.read_table(RP_data_path[cell_line], sep=' ')
+    UTR_csv = pd.read_csv(os.path.join(utils.script_dir,"util",f"RP_{cell_line}_last100bp_5UTR.csv"),index_col=0)
+    RP_raw_data = pd.read_table(csv_path, sep=' ')
     RP_raw_data.loc[:,'T_id'] = RP_raw_data.index.values
     RP_raw_data['log_te'] = np.log(RP_raw_data.te.values)
     RP_raw_data.sort_values('rpkm_rnaseq', ascending=False, inplace=True)
