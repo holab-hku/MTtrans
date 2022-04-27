@@ -111,4 +111,5 @@ train_val_df.to_csv(os.path.join(Ex_data_dir,"MPA_U_train_val.csv"),index=False)
 
 
 
-print("Finished !!")
+print("The preprocssing for MPA tasks is Finished !!")
+print(f"The files are saved to {utils.data_dir}")

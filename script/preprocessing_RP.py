@@ -31,4 +31,5 @@ for cell_line, csv_path in RP_data_path.items():
     RP_raw_dedup = RP_raw_data.drop_duplicates(['utr'], keep='first')
     RP_raw_dedup.to_csv(pj(f"RP_{cell_line}_MTL_transfer.csv"))
 
-print("Finished!")
+print("The preprocssing for RP tasks is Finished !!")
+print(f"The files are saved to {utils.data_dir}")
