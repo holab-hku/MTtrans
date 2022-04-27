@@ -1,0 +1,3 @@
+*.log
+*.out
+log/Backbone/RL_gru/mixing_task_kfold/schedual_lr_cv0.log
