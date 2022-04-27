@@ -1,10 +1,12 @@
 DATA_DIR=$(cat machine_configure.json |grep data_dir|awk '{print $2}'|awk -F "," '{print $1}')
 
 if [! -d ${DATA_DIR} ]; then
-    echo "${DATA_DIR} does not exist! Redirect to `./data`"
+    echo ${DATA_DIR} does not exist! Redirect to ./data
     DATA_DIR=$(pwd)/data
+    fi
 
-cd $DATA_DIR
+cd ${DATA_DIR}
+
 ## download the ribosome profiling datasest 
 # RP-muscle
 wget https://raw.githubusercontent.com/zzz2010/5UTR_Optimizer/master/data/df_counts_and_len.TE_sorted.Muscle.with_annot.txt 
@@ -12,7 +14,8 @@ wget https://raw.githubusercontent.com/zzz2010/5UTR_Optimizer/master/data/df_cou
 wget https://raw.githubusercontent.com/zzz2010/5UTR_Optimizer/master/data/df_counts_and_len.TE_sorted.HEK_Andrev2015.with_annot.txt 
 # RP-PC3
 wget https://raw.githubusercontent.com/zzz2010/5UTR_Optimizer/master/data/df_counts_and_len.TE_sorted.pc3.with_annot.txt 
-
+# ref
+wget https://raw.githubusercontent.com/zzz2010/5UTR_Optimizer/master/data/gencode_v17_5utr_15bpcds.fa
 
 ## download the Massively parallel report assay datasets
 # MPA_U

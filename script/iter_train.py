@@ -5,7 +5,7 @@ import argparse
 parser = argparse.ArgumentParser('the main to train model')
 parser.add_argument('--config_file',type=str,required=True)
 parser.add_argument('--cuda',type=int,default='cpu',required=False)
-parser.add_argument("--kfold_index",type=int,default=None,required=False)
+parser.add_argument("--kfold_index",type=int,default=1,required=False)
 args = parser.parse_args()
 
 cuda_id = args.cuda if args.cuda is not None else utils.get_config_cuda(args.config_file)
@@ -18,7 +18,7 @@ import copy
 import utils
 from torch import optim
 import numpy as np 
-from models import MTL_models,reader,train_val
+from models import reader,train_val
 from models.ScheduleOptimizer import ScheduledOptim,scheduleoptim_dict_str
 from models.popen import Auto_popen
 from models.loss import Dynamic_Task_Priority,Dynamic_Weight_Averaging
@@ -56,12 +56,12 @@ loader_set = {}
 base_path = copy.copy(POPEN.split_like_paper)
 base_csv = copy.copy(POPEN.csv_path)
 for subset in POPEN.cycle_set:
-    if (subset in ['unmod1', 'human', 'vleng', 'SubHuman','SubVleng']):
-        datapopen = Auto_popen('log/Backbone/RL_3_data/rl_train_val_10fold/schedule_lr.ini')
+    if (subset in ['MPA_U', 'MPA_H', 'MPA_V', 'SubMPA_H']):
+        datapopen = Auto_popen('log/Backbone/RL_hard_share/3M/schedule_lr.ini')
         datapopen.split_like_paper = [path.replace('cycle', subset) for path in base_path]
         datapopen.kfold_index = args.kfold_index
-    elif (subset in ['Andrev2015', 'muscle', 'pc3']):
-        datapopen = Auto_popen('log/Backbone/RL_celline/MDL_pretrain_relax/pretrain_relax.ini')
+    elif (subset in ['RP_293T', 'RP_muscle', 'RP_PC3']):
+        datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
         datapopen.csv_path = base_csv.replace('cycle', subset)
         datapopen.kfold_index = args.kfold_index
     loader_set[subset] = reader.get_dataloader(datapopen)
