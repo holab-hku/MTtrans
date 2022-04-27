@@ -1,7 +1,11 @@
-DATA_DIR=$(cat machine_configure.json |grep data_dir|awk '{print $2}'|awk -F "," '{print $1}')
+DATA_DIR=$(cat machine_configure.json |grep data_dir|awk  -F ': "' '{print $2}'|awk -F '",' '{print $1}')
 
 if [ ! -d ${DATA_DIR} ]; then
+    echo "=============================================================="
+    echo "                   "
     echo ${DATA_DIR} does not exist! Redirect to ./data
+    echo "                   "
+    echo "=============================================================="
     DATA_DIR=$(pwd)/data
     fi
 
