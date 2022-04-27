@@ -75,8 +75,9 @@ def train(dataloader,model,optimizer,popen,epoch,lr=None, verbose=True):
                 train_verbose = train_verbose.format(*verbose_args)                         
             
                 logger.info(train_verbose)
-        with torch.cuda.device(popen.cuda_id):
-            torch.cuda.empty_cache()
+        if popen.cuda_id != 'cpu':
+            with torch.cuda.device(popen.cuda_id):
+                torch.cuda.empty_cache()
 
 def validate(dataloader,model,popen,epoch):
 
@@ -211,8 +212,10 @@ def iter_train(loader_dict, model, optimizer, popen, epoch, verbose=True):
                 train_verbose = train_verbose.format(*verbose_args)                         
             
                 logger.info(train_verbose)
-        with torch.cuda.device(popen.cuda_id):
-            torch.cuda.empty_cache()
+
+        if popen.cuda_id != 'cpu':
+            with torch.cuda.device(popen.cuda_id):
+                torch.cuda.empty_cache()
 
 def cycle_validate(loader_dict, model, optimizer, popen, epoch):
 
