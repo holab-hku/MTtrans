@@ -3,12 +3,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import numpy as np
 import utils
 import json
-from models import DL_models
-from models import CNN_models
-from models import MTL_models
-from models import Baseline_models
 from models import Backbone
-from models import Cross_stitch
 import configparser
 import logging
 
@@ -64,53 +59,13 @@ class Auto_popen(object):
         """
         assert we type in the correct model type and group them into model_args
         """
-        if "Conv" in self.model_type:
-            assert self.model_type in dir(CNN_models), "model type not in CNN models"
-            self.Model_Class = eval("CNN_models.{}".format(self.model_type))
-        elif "LSTM" in self.model_type:
-            assert self.model_type in dir(DL_models), "model type not in DL models"
-            self.Model_Class = eval("DL_models.{}".format(self.model_type))
+        
+        if self.model_type in dir(Backbone):
+            self.Model_Class = eval("Backbone.{}".format(self.model_type))
         else:
-            if self.model_type in dir(Backbone):
-                self.Model_Class = eval("Backbone.{}".format(self.model_type))
-            elif self.model_type in dir(Baseline_models):
-                self.Model_Class = eval("Baseline_models.{}".format(self.model_type))
-            elif self.model_type in dir(Cross_stitch):
-                self.Model_Class = eval("Cross_stitch.{}".format(self.model_type))
-            else:
-                assert self.model_type in dir(MTL_models), "model type not in MTL models"
-                self.Model_Class = eval("MTL_models.{}".format(self.model_type))
+            raise NameError("not such model type")
+    
         
-        # teacher foring
-        # if self.teacher_forcing is True:
-        #     # default setting
-        #     self.teacher_forcing = True
-        #     t_k,t_b = (0.032188758248682,0.032188758248682)  # k = b , k = log5 / 50
-        # elif type(self.config_dict['teacher_forcing']) == list:
-        #     self.teacher_forcing = True
-        #     t_k,t_b = self.config_dict['teacher_forcing']
-        # elif self.config_dict['teacher_forcing'] == 'fixed':
-        #     t_k = t_b = 100
-        # elif self.config_dict['teacher_forcing'] == False:
-        #     t_k = t_b = 100
-            
-        
-        # if "LSTM" in self.model_type:
-        #     self.model_args=[self.input_size,
-        #                      self.config_dict["hidden_size_enc"],
-        #                      self.config_dict["hidden_size_dec"],
-        #                      self.config_dict["num_layers"],
-        #                      self.config_dict["latent_dim"],
-        #                      self.config_dict["seq_in_dim"],
-        #                      self.config_dict["decode_type"],
-        #                      self.config_dict['teacher_forcing'],
-        #                      self.config_dict['discretize_input'],
-        #                      t_k,t_b,
-        #                      self.config_dict["bidirectional"],
-        #                      self.config_dict["fc_output"]]
-        
-        # model_args = {k: v for k, v in args.items() if
-        #           k in [p.name for p in inspect.signature(Model.__init__).parameters.values()]}
             
         if "Conv" in self.model_type:
             args_to_read = ["channel_ls","padding_ls","diliat_ls","latent_dim","kernel_size"]

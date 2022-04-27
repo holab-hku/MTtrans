@@ -591,7 +591,7 @@ class Maximum_activation_kmer(Maxium_activation_patch):
         print('the virtual pad is', self.virtual_pad)
     
     def load_indexed_dataloader(self, task='kmer'):
-        self.csv_path = f"/data/users/wergillius/UTR_VAE/multi_task/ds4rl_seperate/all_{self.r}mer.csv"
+        self.csv_path = f"<DATA_DIR>/all_{self.r}mer.csv"
         self.popen.split_like_paper = [self.csv_path,self.csv_path]
         self.popen.csv_path = None
         self.popen.kfold_cv = False

@@ -16,7 +16,7 @@ from Bio.SeqRecord import SeqRecord
 from torch.utils.data import  DataLoader, Dataset ,random_split,IterableDataset
 from sklearn.model_selection import KFold,train_test_split
 from bucket_sampler import Bucket_Sampler
-from utils import Seq_one_hot,read_UTR_csv,read_label
+from utils import Seq_one_hot
 
 global script_dir
 global data_dir
@@ -281,7 +281,7 @@ def split_DF(data_path,split_like_paper,ratio,kfold_cv,kfold_index=None,seed=42)
             if self.is_fasta:
                 self.data = list(SeqIO.parse(self.path,'fasta'))
             else:
-                self.data = pd.read_csv(self.path,low_memory=False)
+                self.data = pd.read_csv(os.path.join(data_dir,self.path),low_memory=False)
         
         def __len__(self):
             return len(self.data)
@@ -294,7 +294,7 @@ def split_DF(data_path,split_like_paper,ratio,kfold_cv,kfold_index=None,seed=42)
             
         
     if kfold_cv == True:
-        full_df = pd.read_csv(data_path,low_memory=False)
+        full_df = pd.read_csv(os.path.join(data_dir,data_path),low_memory=False)
         # K-fold CV : 8:1:1 for each partition
         df_ls = KFold_df_split(full_df,kfold_index)
         
