@@ -105,9 +105,10 @@ def validate(dataloader,model,popen,epoch):
             
             loss_dict = utils.clean_value_dict(loss_dict)  # convert possible torch to single item
             verbose_list.append(loss_dict)
-               
-            with torch.cuda.device(popen.cuda_id):  
-                torch.cuda.empty_cache()
+
+            if popen.cuda_id != torch.device('cpu'):   
+                with torch.cuda.device(popen.cuda_id):  
+                    torch.cuda.empty_cache()
             
           # # average among batch
     
@@ -255,8 +256,9 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch):
                 loss_dict = utils.clean_value_dict(loss_dict)  # convert possible torch to single item
                 verbose_list.append(loss_dict)
                 
-                with torch.cuda.device(popen.cuda_id):  
-                    torch.cuda.empty_cache()
+                if popen.cuda_id != torch.device('cpu'):
+                    with torch.cuda.device(popen.cuda_id):  
+                        torch.cuda.empty_cache()
                 
           # # average among batch
     
