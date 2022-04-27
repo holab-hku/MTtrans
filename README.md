@@ -1,7 +1,9 @@
 # MTtrans
 
 MTtrans is a multi-task learning framework for integrating translation rate measurement from differet sequencing platforms 
-and the discovery. The shared prepresentation captures common patterns acorss techiniques that are used to discover the robust *cis*-regulatory elements.
+and the discovery. The shared prepresentation captures common patterns acorss techiniques that are used to discover the robust *cis*-regulatory elements. 
+
+
 <img src="util/MTtrans_mark.jpg" width="50%" height="50%" />
 
 
