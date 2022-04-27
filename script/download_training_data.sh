@@ -7,11 +7,11 @@ if [! -d ${DATA_DIR} ]; then
 cd $DATA_DIR
 ## download the ribosome profiling datasest 
 # RP-muscle
-wget https://github.com/zzz2010/5UTR_Optimizer/blob/master/data/df_counts_and_len.TE_sorted.Muscle.with_annot.txt 
+wget https://raw.githubusercontent.com/zzz2010/5UTR_Optimizer/master/data/df_counts_and_len.TE_sorted.Muscle.with_annot.txt 
 # RP-293T
-wget https://github.com/zzz2010/5UTR_Optimizer/blob/master/data/df_counts_and_len.TE_sorted.HEK_Andrev2015.with_annot.txt 
+wget https://raw.githubusercontent.com/zzz2010/5UTR_Optimizer/master/data/df_counts_and_len.TE_sorted.HEK_Andrev2015.with_annot.txt 
 # RP-PC3
-wget https://github.com/zzz2010/5UTR_Optimizer/blob/master/data/df_counts_and_len.TE_sorted.pc3.with_annot.txt 
+wget https://raw.githubusercontent.com/zzz2010/5UTR_Optimizer/master/data/df_counts_and_len.TE_sorted.pc3.with_annot.txt 
 
 
 ## download the Massively parallel report assay datasets
@@ -28,8 +28,6 @@ wget ftp.ncbi.nlm.nih.gov/geo/samples/GSM2793nnn/GSM2793752/suppl/GSM2793752_Ran
 
 
 gzip -d *.gz
+
 echo "Finished ! All data ready~"
 echo "Please step to the pre-proccessing"
-
-
-
