@@ -62,7 +62,7 @@ for subset in POPEN.cycle_set:
         datapopen.kfold_index = args.kfold_index
     elif (subset in ['RP_293T', 'RP_muscle', 'RP_PC3']):
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
-        datapopen.csv_path = base_csv.replace('cycle', subset)
+        datapopen.split_like = [path.replace('cycle', subset) for path in base_path]
         datapopen.kfold_index = args.kfold_index
     loader_set[subset] = reader.get_dataloader(datapopen)
 # for subset in POPEN.cycle_set:
