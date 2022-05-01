@@ -71,3 +71,97 @@ If the python script works, you will see the following text popping both in the 
 ```
 
 The testing model will automatically save to the "pth_dir", which is `checkpoint/` by default.
+
+# Playing with the model
+
+To explore the trained model, we can load in the saved checkpoint to resume the model for later analysis.
+Here we use the testing checkpoint file (end with `.pth`) we just trained as the example.
+
+```shell
+# firstly make sure you are in the correct environment
+conda activate MTtrans
+
+# then get into your favourite python IDE (i.e jupyter / vscode)
+# here I enter the built-in one for demonstration
+python
+```
+
+```python
+>>> import os
+>>> import torch
+>>> from torchinfo import summary
+
+# paste the checkpoint path here
+>>> save_path = "<pth_dir>/RL_hard_share_MTL/3R/testing-model_best_cv1.pth"
+>>> assert os.path.exists(save_path) , "please repalce <pth_dir> with the correct path set in your machine"
+
+# resume in the 'cpu' 
+>>> model = torch.load(save_path, 'cpu')['state_dict']
+
+# an overview of the model
+>>> summery(model)
+=====================================================================
+Layer (type:depth-idx)                        Param #
+======================================================================
+RL_hard_share                                 --
+├─Conv1d_block: 1-1                           --
+│    └─ModuleList: 2-1                        --
+│    │    └─Sequential: 3-1                   1,920
+│    │    └─Sequential: 3-2                   99,072
+│    │    └─Sequential: 3-3                   394,752
+│    │    └─Sequential: 3-4                   787,968
+├─ModuleDict: 1-2                             --
+│    └─ModuleList: 2-2                        --
+│    │    └─GRU: 3-5                          181,440
+│    │    └─Linear: 3-6                       81
+│    └─ModuleList: 2-3                        --
+│    │    └─GRU: 3-7                          181,440
+│    │    └─Linear: 3-8                       81
+│    └─ModuleList: 2-4                        --
+│    │    └─GRU: 3-9                          181,440
+│    │    └─Linear: 3-10                      81
+│    └─ModuleList: 2-5                        --
+│    │    └─GRU: 3-11                         181,440
+│    │    └─Linear: 3-12                      81
+│    └─ModuleList: 2-6                        --
+│    │    └─GRU: 3-13                         181,440
+│    │    └─Linear: 3-14                      81
+├─Linear: 1-3                                 81
+├─MSELoss: 1-4                                --
+======================================================================
+Total params: 2,191,398
+Trainable params: 2,191,398
+Non-trainable params: 0
+======================================================================
+>>>exit()
+```
+
+# References:
+
+We sincerely thanks all the listed authors for making their data publicly available.
+
+> Cuperus, J.T., Groves, B., Kuchina, A., Rosenberg, A.B., Jojic, N., Fields, S., Seelig, G.: Deep learning of the
+regulatory grammar of yeast 5 untranslated regions from 500,000 random sequences. Genome Research 27(12),
+2015{2024 (2017) [link](https://genome.cshlp.org/content/27/12/2015.full)
+
+> Sample, P.J., Wang, B., Reid, D.W., Presnyak, V., McFadyen, I.J., Morris, D.R., Seelig, G.: Human 5 utr
+design and variant effect prediction from a massively parallel translation assay. Nature Biotechnology 37(7),
+803{809 (2019) [link](https://www.nature.com/articles/s41587-019-0164-5)
+
+> Andreev, D.E., O’Connor, P.B., Fahey, C., Kenny, E.M., Terenin, I.M., Dmitriev, S.E., Cormican, P., Morris,
+D.W., Shatsky, I.N., Baranov, P.V.: Translation of 5 leaders is pervasive in genes resistant to eif2 repression.
+Elife 4, 03971 (2015) [link](https://elifesciences.org/articles/03971)
+
+> Hsieh, A.C., Liu, Y., Edlind, M.P., Ingolia, N.T., Janes, M.R., Sher, A., Shi, E.Y., Stumpf, C.R., Christensen,
+C., Bonham, M.J., et al.: The translational landscape of mtor signalling steers cancer initiation and metastasis.
+Nature 485(7396), 55{61 (2012) [link](https://www.nature.com/articles/nature10912)
+
+> Wein, N., Vulin, A., Falzarano, M.S., Szigyarto, C.A.-K., Maiti, B., Findlay, A., Heller, K.N., Uhl´en, M.,
+Bakthavachalu, B., Messina, S., et al.: Translation from a dmd exon 5 ires results in a functional dystrophin
+isoform that attenuates dystrophinopathy in humans and mice. Nature Medicine 20(9), 992{1000 (2014) 
+ [link](https://www.nature.com/articles/nm0415-414b)
+
+> Cao, J., Novoa, E.M., Zhang, Z., Chen, W.C., Liu, D., Choi, G.C., Wong, A.S., Wehrspaun, C., Kellis, M., Lu,
+T.K.: High-throughput 5 utr engineering for enhanced protein production in non-viral gene therapies. Nature
+Communications 12(1), 1{10 (2021)
+[link](https://www.nature.com/articles/s41467-021-24436-7)
