@@ -19,7 +19,7 @@ class Auto_popen(object):
         self.log_dir = utils.log_dir
         self.pth_dir = utils.pth_dir
         self.set_attr_as_none(['te_net_l2','loss_fn','modual_to_fix','other_input_columns','pretrain_pth'])
-        self.split_like_paper = False
+        self.split_like = False
         self.loss_schema = 'constant'
         
         # transform to dict and convert to  specific data type

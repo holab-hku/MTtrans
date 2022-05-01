@@ -43,12 +43,12 @@ class Maxium_activation_patch(object):
         
         tmp_popen = copy.copy(self.popen)
         if self.popen.cycle_set != None:
-            base_path = copy.copy(self.popen.split_like_paper)
+            base_path = copy.copy(self.popen.split_like)
             base_csv = copy.copy(self.popen.csv_path)
             
             if base_path is not None:
                 assert task != None , "task is not defined !"
-                tmp_popen.split_like_paper = [path.replace('cycle', task) for path in base_path]
+                tmp_popen.split_like = [path.replace('cycle', task) for path in base_path]
             else:
                 tmp_popen.csv_path = base_csv.replace('cycle', task)
                 
@@ -446,7 +446,7 @@ class merge_task_map(Maxium_activation_patch):
         if task in ['Andrev2015','muscle','pc3']:
             self.popen.seq_col = 'utr'
             self.popen.aux_task_columns = ['log_te']
-            self.popen.split_like_paper = None
+            self.popen.split_like = None
             self.popen.kfold_cv = True
         
         loader_ls = super().load_indexed_dataloader(task)
@@ -592,7 +592,7 @@ class Maximum_activation_kmer(Maxium_activation_patch):
     
     def load_indexed_dataloader(self, task='kmer'):
         self.csv_path = f"<DATA_DIR>/all_{self.r}mer.csv"
-        self.popen.split_like_paper = [self.csv_path,self.csv_path]
+        self.popen.split_like = [self.csv_path,self.csv_path]
         self.popen.csv_path = None
         self.popen.kfold_cv = False
         self.popen.kfold_index = self.kfold_index

@@ -269,7 +269,7 @@ def get_splited_dataloader(dataset_func, df_ls, ratio:list, batch_size, shuffle,
         
     return loader_ls
 
-def split_DF(data_path,split_like_paper,ratio,kfold_cv,kfold_index=None,seed=42):
+def split_DF(data_path,split_like,ratio,kfold_cv,kfold_index=None,seed=42):
     
     class _cf_data(object):
         def __init__(self,data_path):
@@ -299,13 +299,13 @@ def split_DF(data_path,split_like_paper,ratio,kfold_cv,kfold_index=None,seed=42)
         df_ls = KFold_df_split(full_df,kfold_index)
         
     if kfold_cv == 'train_val':
-        train_val, test = [_cf_data(data_path).data for data_path in split_like_paper]
+        train_val, test = [_cf_data(data_path).data for data_path in split_like]
         # K-fold CV : 8:1:1 for each partition
         train, val = KFold_1_split(train_val,kfold_index)
         df_ls = [train, val , test]
     
-    elif type(split_like_paper) == list:
-        df_ls = [_cf_data(data_path).data for data_path in split_like_paper]
+    elif type(split_like) == list:
+        df_ls = [_cf_data(data_path).data for data_path in split_like]
     
     else:
         full_df = _cf_data(data_path)
@@ -362,7 +362,7 @@ def get_dataloader(POPEN):
     wrapper
     """
     
-    df_ls = split_DF(POPEN.csv_path,POPEN.split_like_paper,POPEN.train_test_ratio,POPEN.kfold_cv,POPEN.kfold_index,seed=42)
+    df_ls = split_DF(POPEN.csv_path,POPEN.split_like,POPEN.train_test_ratio,POPEN.kfold_cv,POPEN.kfold_index,seed=42)
     
     
     DS_Class = eval(POPEN.dataset+"_dataset")
