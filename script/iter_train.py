@@ -48,13 +48,14 @@ logger = utils.setup_logs(POPEN.vae_log_path)
 logger.info(f"    ===========================| device {device}{cuda_id} |===========================    ")
 #  built model dir or check resume 
 POPEN.check_experiment(logger)
+
 #                               |=====================================|
 #                               |===========   setup  part  ==========|
 #                               |=====================================|
 # read data
 loader_set = {}                                                                                                                                                                                                                                                                                                                 
-base_path = copy.copy(POPEN.split_like)
-base_csv = copy.copy(POPEN.csv_path)
+base_path = ['cycle_train_val.csv', 'cycle_test.csv']
+base_csv = 'cycle_MTL_transfer.csv'
 for subset in POPEN.cycle_set:
     if (subset in ['MPA_U', 'MPA_H', 'MPA_V', 'SubMPA_H']):
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3M/schedule_lr.ini')
@@ -62,15 +63,10 @@ for subset in POPEN.cycle_set:
         datapopen.kfold_index = args.kfold_index
     elif (subset in ['RP_293T', 'RP_muscle', 'RP_PC3']):
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
-        datapopen.split_like = [path.replace('cycle', subset) for path in base_path]
+        datapopen.csv_path = base_csv.replace("cycle",subset)
         datapopen.kfold_index = args.kfold_index
     loader_set[subset] = reader.get_dataloader(datapopen)
-# for subset in POPEN.cycle_set:
-#     if base_path is not None:
-#         POPEN.split_like = [path.replace('cycle', subset) for path in base_path]
-#     else:
-#         POPEN.csv_path = base_csv.replace('cycle', subset)
-#     loader_set[subset] = reader.get_dataloader(POPEN)
+
     
 # ===========  setup model  ===========
 # train_iter = iter(train_loader)
