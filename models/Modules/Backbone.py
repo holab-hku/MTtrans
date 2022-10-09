@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, r2_score
 from torch.nn.modules import activation
 from torch.nn.modules.dropout import Dropout
+from _operator import Conv1d_block, ConvTranspose1d_block, linear_block
     
 class backbone_model(nn.Module):
     def __init__(self,conv_args,activation='ReLU'):
@@ -152,6 +153,8 @@ class RL_gru(RL_regressor):
 class RL_hard_share(RL_gru):
     def __init__(self,conv_args,tower_width=40,dropout_rate=0.2, tasks =['unmod1', 'human', 'vleng']):
         """
+        Ribosome Loading Prediction with Hard-sharing;
+        shared convolution bottom
         tower is gru
         """      
         super().__init__(conv_args,tower_width,dropout_rate)

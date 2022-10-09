@@ -4,6 +4,7 @@ import numpy  as np
 from torch import nn
 from scipy import stats
 import torch.nn.functional as F
+from einops import rearrange
 from sklearn.metrics import roc_auc_score, r2_score
 from torch.nn.modules import activation
 from torch.nn.modules.dropout import Dropout
@@ -134,3 +135,76 @@ class linear_block(nn.Module):
         )
     def forward(self,x):
         return self.block(x)
+
+
+class Self_Attention(nn.Module):
+    """
+    self attention operator for Conv1d sequences output
+    """
+    def __init__(self, in_dim:int, out_dim:int, qk_dim:int, n_head:int):
+        super().__init__()
+
+        self.n_head = n_head
+        self.total_qk_dim = qk_dim * n_head
+        self.transform = nn.ModuleDict({
+            k : nn.Linear(in_dim, self.total_qk_dim) for k in ['k', 'q', 'v']
+        })
+
+        self.fc_out = nn.Sequential(
+            nn.Linear(self.total_qk_dim, out_dim),
+            nn.GroupNorm(1, out_dim)   # instance norm
+        )
+
+    def dim_rerrange(self, x):
+
+        # first break down total qk dimension
+        # then transpose length with heads
+        x1 = rearrange(x, "b l (n c) -> b n c l", n=self.n_head) 
+        return x1
+
+    def forward(self, X):
+    
+        # assume we have a 3 dimension input X (b, len, in_dim)
+        # each out in qkv is also 3 dimension  (b, len , qk_dim)
+        qkv = [self.transform[key](X) for key in ['k', 'q', 'v']]
+        q, k, v = map(self.dim_rerrange, qkv)
+
+        # here i and j is the channel
+        sim = torch.einsum("b n c i, b n c j -> b n i j", q, k).softmax(dim=-2, keepdim=True)
+        sim = sim - attn.amax(dim=-1, keepdim=True).detach() 
+        attn = sim.softmax(dim=-1)
+
+        out = torch.einsum("b n i j, b n c j -> b n i c", attn, v)
+        out = rearrange(out, "b n i c -> b i (n c)")
+        return self.fc_out(out)
+
+
+class Self_Attention_for_GP(Self_Attention):
+    """
+    self attention operator for Conv1d sequences Global Pooling output
+    The input has 2 dimension (no length dim), 
+    """
+    def __init__(self, in_dim:int, out_dim:int, qk_dim:int, n_head:int):
+        super().__init__(in_dim, out_dim, qk_dim, n_head)
+
+    def _get_attention_map(self,X):
+        # assume we have a 3 dimension input X (b, len, in_dim)
+        # each out in qkv is also 3 dimension  (b, len , qk_dim)
+        qkv = [self.transform[key](X) for key in ['k', 'q', 'v']]
+        q, k, v = map(
+            lambda x : rearrange(x, "b (n c)-> b n c"), qkv
+        )
+
+        # here i and j is the channel
+        sim = torch.einsum("b n i, b n j -> b n i j", q, k).softmax(dim=-2, keepdim=True)
+        sim = sim - attn.amax(dim=-1, keepdim=True).detach() 
+        attn = sim.softmax(dim=-1)
+        return attn, v
+
+    def forward(self, X):
+        # 
+        attn, v = self._get_attention_map(X)
+
+        out = torch.einsum("b n i j, b n j -> b n i", attn, v)
+        out = rearrange(out, "b n i -> b (n i)")
+        return self.fc_out(out)
