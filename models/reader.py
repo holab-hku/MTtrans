@@ -224,6 +224,53 @@ class MTL_dataset(Dataset):
 
         return item   
 
+class kmer_scan_dataset(Dataset):
+    def __init__(self, DF, seq_col, kmer_size, aux_columns=None, *args):
+        super().__init__()
+        self.df = DF
+        self.seqs = DF[seq_col].values
+        self.rls = DF[aux_columns].values
+        self.k = kmer_size
+        self.kmer_sets = self.create_kmer()
+        self.kmer_lookup = { kmer : i for i, kmer in enumerate(self.kmer_sets) }
+
+    def __len__(self):
+        return self.df.shape[0]
+
+    def __getitem__(self, index):
+        seq  = self.seqs[index]
+        y = self.rls[index]
+
+        x = self.scan_kmer(seq)
+        return torch.tensor(x.astype(float)), torch.tensor(y)
+    
+    def scan_kmer(self, seq):
+
+        mat = np.zeros((len(self.kmer_lookup), len(seq)-self.k))
+        for i in range(0, len(seq)-self.k):
+            seq_let = seq[i:i+self.k]
+            mat[self.kmer_lookup[seq_let], i]  = 1
+
+        return mat
+
+    
+    def create_kmer(self):
+        all_kmer = {0:['']}
+        k = 1
+        while k <= self.k:
+            k_mer = []  # 1 ; 4 ; 2: 4**2 ...
+            for source in all_kmer[k-1]:
+                k_mer += [source + base for base in ['A','C','G','T']]
+
+            assert len(k_mer) == 4**k, f"new kmers {len(k_mer)}, not equal to {4**k}"
+            all_kmer[k] = k_mer
+            k += 1
+
+        all_kmer.pop(0)
+        return all_kmer[self.k]
+
+
+
 
 class FASTA_dataset(MTL_dataset):
     def __init__(self,DF, pad_to,trunc_len, seq_col, aux_columns, other_input_columns):
