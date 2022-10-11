@@ -1,3 +1,4 @@
+import os, sys
 import torch 
 import numpy  as np
 from torch import nn
@@ -6,7 +7,7 @@ import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, r2_score
 from torch.nn.modules import activation
 from torch.nn.modules.dropout import Dropout
-from _operator import Conv1d_block, ConvTranspose1d_block, linear_block
+from ._operator import Conv1d_block, ConvTranspose1d_block, linear_block
     
 class backbone_model(nn.Module):
     def __init__(self,conv_args,activation='ReLU'):
@@ -96,7 +97,7 @@ class RL_regressor(backbone_model):
         if len(out.shape) == 2:
             out = out.squeeze(1)
         
-        assert Y.shape == out.shape
+        assert Y.shape == out.shape, "keep label and pred the same shape"
         return out,Y
     
     def compute_acc(self,out,X,Y,popen=None):
@@ -151,22 +152,26 @@ class RL_gru(RL_regressor):
         return out
 
 class RL_hard_share(RL_gru):
-    def __init__(self,conv_args,tower_width=40,dropout_rate=0.2, tasks =['unmod1', 'human', 'vleng']):
+    def __init__(self,conv_args,tower_width=40,dropout_rate=0.2,activation='ReLU', tasks =['unmod1', 'human', 'vleng']):
         """
         Ribosome Loading Prediction with Hard-sharing;
         shared convolution bottom
         tower is gru
         """      
-        super().__init__(conv_args,tower_width,dropout_rate)
+        super().__init__(conv_args,tower_width,dropout_rate,activation)
         self.all_tasks = tasks
-        tower_block = lambda c,w : nn.ModuleList([nn.GRU(input_size=c,
-                                                        hidden_size=w,
-                                                        num_layers=2,
-                                                        batch_first=True),
-                                                nn.Linear(w,1)])
         
-        self.tower = nn.ModuleDict({task: tower_block(self.channel_ls[-1], tower_width) for task in self.all_tasks})
+        self.tower = nn.ModuleDict({task: self.tower_block(self.channel_ls[-1], tower_width) for task in self.all_tasks})
     
+    def tower_block(self, c, w):
+        block = nn.ModuleList([nn.GRU(input_size=c,
+                                    hidden_size=w,
+                                    num_layers=2,
+                                    batch_first=True),
+                                nn.Linear(w,1)])
+        return block
+
+
     def forward(self, X):
         
         task = self.task # pass in cycle_train.py
@@ -196,7 +201,47 @@ class RL_hard_share(RL_gru):
         task = self.task
         Acc = super().compute_acc(out,X,Y,popen)['Acc']
         return {task+"_Acc" : Acc}
+
+class RL_covar_reg(RL_hard_share):
+    def __init__(self,conv_args,tower_width=40,dropout_rate=0.2, activation='ReLU',  n_covar=1, tasks =['unmod1', 'human', 'vleng']):
+        """
+        Ribosome Loading Prediction with Hard-sharing and account for covariates
+        covariate is added at the last layer
+        """      
+        super().__init__(conv_args,tower_width,dropout_rate,activation, tasks)
+        self.all_tasks = tasks
+        self.n_covar = self.n_covar
+        
+        self.tower = nn.ModuleDict({task: tower_block(self.channel_ls[-1], tower_width) for task in self.all_tasks})
+
+    def tower_block(self, c, w):
+        block = nn.ModuleList([nn.GRU(input_size=c,
+                                    hidden_size=w,
+                                    num_layers=2,
+                                    batch_first=True),
+
+                                # covariate is added here
+                                nn.Linear(w + self.n_covar,1)])
+        return block
     
+    def forward(self, X):
+        
+        task = self.task # pass in cycle_train.py
+        X_seq, X_covar = X
+        assert len(X_covar) == self.n_covar, "the # of covariates is not consistent with the model params"
+
+        # Con block
+        Z = self.soft_share(X_seq)
+        # tower
+        Z_t = torch.transpose(Z, 1, 2)
+        h_prim,(c1,c2) = self.tower[task][0](Z_t)
+
+        # concate
+        linear_factor = torch.cat([c2, X_covar], dim=1)
+        out = self.tower[task][1](linear_factor)
+        
+        return out
+
 class RL_celline(RL_hard_share):
     def __init__(self,conv_args,tower_width,dropout_rate, tasks):
         super().__init__(conv_args,tower_width,dropout_rate, tasks)

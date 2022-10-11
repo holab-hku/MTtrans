@@ -10,14 +10,28 @@ from torch.nn.modules.dropout import Dropout
 
 class Conf_CNN(nn.Module):
     r"""
-    representative learning for DNA motifs detection by Peter Koo et al
+    Convolution hidden representative learning for DNA motifs detection by Peter Koo et al
     https://doi.org/10.1371/journal.pcbi.1007560
 
     The model forces the motifs to be detected in the first CNN layer
     The certain receptive field set by different max pooling size
+
+    Parmas:
+    --------------------
+    conv_args
+    - channel_ls
+        list [4, x, x] , Koo_net only support 2 layer CNN
+    - kernel_size
+        list, defualt [8,5]
+    - stride
+        list [1, 1s]
+
+    pool_size
+        list [10,5]
     """
-    def __init__(self, channel_ls, kernel_size=[8,5], stride=[1,1], pool_size=[10,5]):
+    def __init__(self, conv_args, pool_size=[10,5]):
         super().__init__()
+        channel_ls,kernel_size,stride,_,_,pad_to = conv_args
 
         self.channel_ls =channel_ls 
         CNN_dims = list(zip(channel_ls[:-1], channel_ls[1:]))
@@ -65,6 +79,8 @@ class Conf_CNN(nn.Module):
         """
         2 stage forward
         """
+        if X.shape[1] != 4:
+            X = X.transpose(1,2)
         Conv_out = self.network['Conv'](X)
         assert Conv_out.shape[-1] == 1, "the maxpooling is not restricting values to 1"
 
@@ -78,7 +94,17 @@ class Conf_CNN(nn.Module):
         if len(out.shape) == 2:
             out = out.squeeze(1)
 
-        return self.loss_fn(out, Y)
+        return {"Total":self.loss_fn(out, Y)}
+    
+    def squeeze_out_Y(self,out,Y):
+        # ------ squeeze ------
+        if len(Y.shape) == 2:
+            Y = Y.squeeze(1)
+        if len(out.shape) == 2:
+            out = out.squeeze(1)
+        
+        assert Y.shape == out.shape
+        return out,Y
     
     def compute_acc(self,out,X,Y,popen=None):
         try:

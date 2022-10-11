@@ -1,5 +1,5 @@
-
 import torch 
+import math
 import numpy  as np
 from torch import nn
 from scipy import stats
@@ -130,8 +130,8 @@ class linear_block(nn.Module):
         self.block = nn.Sequential(
             nn.Linear(in_Chan,out_Chan),
             nn.Dropout(dropout_rate),
-            nn.ReLU(),
-            nn.BatchNorm1d(out_Chan)
+            nn.BatchNorm1d(out_Chan),
+            nn.ReLU()
         )
     def forward(self,x):
         return self.block(x)
@@ -150,10 +150,7 @@ class Self_Attention(nn.Module):
             k : nn.Linear(in_dim, self.total_qk_dim) for k in ['k', 'q', 'v']
         })
 
-        self.fc_out = nn.Sequential(
-            nn.Linear(self.total_qk_dim, out_dim),
-            nn.GroupNorm(1, out_dim)   # instance norm
-        )
+        self.fc_out = nn.Linear(self.total_qk_dim, out_dim)
 
     def dim_rerrange(self, x):
 
@@ -161,18 +158,25 @@ class Self_Attention(nn.Module):
         # then transpose length with heads
         x1 = rearrange(x, "b l (n c) -> b n c l", n=self.n_head) 
         return x1
-
-    def forward(self, X):
     
+    def _get_attention_map(self,X):
+        """
+        break the forward function to access attention mat
+        """
         # assume we have a 3 dimension input X (b, len, in_dim)
         # each out in qkv is also 3 dimension  (b, len , qk_dim)
         qkv = [self.transform[key](X) for key in ['k', 'q', 'v']]
         q, k, v = map(self.dim_rerrange, qkv)
 
         # here i and j is the channel
-        sim = torch.einsum("b n c i, b n c j -> b n i j", q, k).softmax(dim=-2, keepdim=True)
-        sim = sim - attn.amax(dim=-1, keepdim=True).detach() 
+        sim = torch.einsum("b n c i, b n c j -> b n i j", q, k)
+        sim = sim - sim.amax(dim=-1, keepdim=True).detach() 
         attn = sim.softmax(dim=-1)
+        return attn, v
+
+    def forward(self, X):
+    
+        attn, v = self._get_attention_map(X)
 
         out = torch.einsum("b n i j, b n c j -> b n i c", attn, v)
         out = rearrange(out, "b n i c -> b i (n c)")
@@ -208,3 +212,35 @@ class Self_Attention_for_GP(Self_Attention):
         out = torch.einsum("b n i j, b n j -> b n i", attn, v)
         out = rearrange(out, "b n i -> b (n i)")
         return self.fc_out(out)
+
+class Residual(nn.Module):
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+    
+    def forward(self, x, *args, **kwargs):
+        return self.fn(x, *args, **kwargs) + x
+
+class PreNorm(nn.Module):
+    def __init__(self, dim, fn):
+        super().__init__()
+        self.fn = fn
+        self.norm = nn.GroupNorm(1, dim)
+        
+    def forward(self, x):
+        x = self.norm(x.transpose(1,2))
+        return self.fn(x.transpose(1,2))
+
+class SinusoidalPositionEmbeddings(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+    
+    def forward(self, time):
+        device = time.device
+        half_dim = self.dim // 2 
+        embeddings = math.log(10000) / (half_dim -1) # why do we minus 1 ?
+        embeddings = torch.exp(torch.arange(half_dim, device=device)* -embeddings)
+        embeddings = time[:, None] * embeddings[None, :] # expand to 2 dimension
+        embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
+        return embeddings
