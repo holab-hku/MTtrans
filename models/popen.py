@@ -3,7 +3,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import numpy as np
 import utils
 import json
-from models import Backbone
+from models import Modules
 import configparser
 import logging
 
@@ -36,7 +36,11 @@ class Auto_popen(object):
         self.path_category = self.config_file.split('/')[-4]
         self.vae_log_path = config_file.replace('.ini','.log')
         self.vae_pth_path = os.path.join(self.pth_dir,self.model_type+self._dataset,self.setting_name,self.run_name + '-model_best.pth')
+
         self.Resumable = False
+
+        # covariates for other input
+        self.n_covar = len(self.other_input_columns)
         
         # generate self.model_args
         self.get_model_config()
@@ -60,63 +64,33 @@ class Auto_popen(object):
         assert we type in the correct model type and group them into model_args
         """
         
-        if self.model_type in dir(Backbone):
-            self.Model_Class = eval("Backbone.{}".format(self.model_type))
+        if self.model_type in dir(Modules):
+            self.Model_Class = eval("Modules.{}".format(self.model_type))
         else:
             raise NameError("not such model type")
-    
         
-            
-        if "Conv" in self.model_type:
-            args_to_read = ["channel_ls","padding_ls","diliat_ls","latent_dim","kernel_size"]
-            self.model_args=[self.__getattribute__(args) for args in args_to_read]
+        # conv_args define the soft-sharing part
+        conv_args = ["channel_ls","kernel_size","stride","padding_ls","diliation_ls","pad_to"]
+        self.conv_args = tuple([self.__getattribute__(arg) for arg in conv_args])
         
-        if  self.model_type in  ['TO_SEQ_TE','TRANSFORMER_SEQ_TE','TRANSFORMER_SEQ_RL']:
-            args_to_read = ["channel_ls","padding_ls","diliat_ls","latent_dim","kernel_size","num_label"]
-            self.model_args=[self.__getattribute__(args) for args in args_to_read] 
-            
-        if self.model_type  in  ['Baseline','Hi_baseline']:
-            args_to_read = ["channel_ls","padding_ls","diliat_ls","latent_dim","kernel_size","dropout_ls","num_label","loss_fn","pad_to"]
-            self.model_args=[self.__getattribute__(args) for args in args_to_read] 
+        # left args dfine the tower part in which the arguments are different among tasks
+        left_args={# Backbone models
+                    'RL_regressor':["tower_width","dropout_rate"],
+                    'RL_clf':["n_class","tower_width","dropout_rate"],
+                    'RL_gru':["tower_width","dropout_rate"],
+                    'RL_FACS': ["tower_width","dropout_rate"],
+                    'RL_hard_share':["tower_width","dropout_rate", "activation","cycle_set" ],
+                    'RL_covar_Reg':["tower_width","dropout_rate", "n_covar", "activation","cycle_set" ],
+                    'RL_mish_gru':["tower_width","dropout_rate"],
+                    # GP models
+                    'GP_net': ['tower_width', 'dropout_rate', 'global_pooling', 'activation', 'cycle_set'],
+                    'Frame_GP': ['tower_width', 'dropout_rate', 'activation', 'cycle_set'],
+                    'RL_Atten': ['qk_dim', 'n_head', 'n_atten_layer', 'tower_width', 'dropout_rate', 'activation', 'cycle_set'],
+                    # Koo net
+                    'Conf_CNN' : ['pool_size'],
+                    }[self.model_type]
         
-        if "TWO_TASK_AT" in self.model_type:
-            args_to_read = ["latent_dim","linear_chann_ls","num_label","te_chann_ls","ss_chann_ls","dropout_rate"]
-            self.model_args=[self.__getattribute__(args) for args in args_to_read]
-
-        if self.model_type in ['RL_clf','RL_gru', 'RL_FACS', 'RL_mish_gru', 'RL_regressor','Reconstruction','Motif_detection','RL_hard_share','RL_3_data', 'RL_celline', 'RL_6_data']:           # Backbone
-            # conv_args define the soft-sharing part
-            conv_args = ["channel_ls","kernel_size","stride","padding_ls","diliation_ls","pad_to"]
-            self.conv_args = tuple([self.__getattribute__(arg) for arg in conv_args])
-            
-            # left args dfine the tower part in which the arguments are different among tasks
-            left_args={'RL_regressor':["tower_width","dropout_rate"],
-                       'RL_clf':["n_class","tower_width","dropout_rate"],
-                       'RL_gru':["tower_width","dropout_rate"],
-                       'RL_FACS': ["tower_width","dropout_rate"],
-                       'RL_hard_share':["tower_width","dropout_rate","cycle_set" ],
-                       'RL_3_data':["tower_width","dropout_rate","cycle_set" ],
-                       'RL_celline':["tower_width","dropout_rate","cycle_set"],
-                       'RL_6_data':["tower_width","dropout_rate","cycle_set"],
-                       'RL_mish_gru':["tower_width","dropout_rate"],
-                       'Reconstruction':["variational","latent_dim"],
-                       'Motif_detection':["aux_task_columns","tower_width"]}[self.model_type]
-            
-            self.model_args = [self.conv_args] + [self.__getattribute__(arg) for arg in left_args]
-        
-        if self.model_type in ['Multi_input_RL_regressor']:
-            conv_args = ["channel_ls","kernel_size","stride","padding_ls","diliation_ls","pad_to"]
-            self.conv_args = tuple([self.__getattribute__(arg) for arg in conv_args])
-
-            # extra_input_col = len(other_input_columns)
-            self.model_args = [self.conv_args]+[self.tower_width,self.dropout_rate,len(self.other_input_columns)]
-        
-        if self.model_type == 'CrossStitch':
-            
-            self.model_args = [self.__getattribute__(arg) for arg in ['tasks','alpha','beta']]
-        
-        if self.model_type in ['Cross_stitch_classifier', 'MLP_down','MLP_linear_reg']:
-            
-            self.model_args = [self.channel_ls, self.tower_width]
+        self.model_args = [self.conv_args] + [self.__getattribute__(arg) for arg in left_args]
         
             
     def check_experiment(self,logger):

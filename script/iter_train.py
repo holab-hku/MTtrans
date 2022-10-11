@@ -61,10 +61,18 @@ for subset in POPEN.cycle_set:
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3M/schedule_lr.ini')
         datapopen.split_like = [path.replace('cycle', subset) for path in base_path]
         datapopen.kfold_index = args.kfold_index
+        
+        datapopen.other_input_columns = POPEN.other_input_columns
+        datapopen.n_covar = POPEN.n_covar
+
     elif (subset in ['RP_293T', 'RP_muscle', 'RP_PC3']):
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
         datapopen.csv_path = base_csv.replace("cycle",subset)
         datapopen.kfold_index = args.kfold_index
+
+        datapopen.other_input_columns = POPEN.other_input_columns
+        datapopen.n_covar = POPEN.n_covar
+
     loader_set[subset] = reader.get_dataloader(datapopen)
 
     
@@ -106,7 +114,6 @@ if POPEN.pretrain_pth is not None:
     else:
         # two different class -> Enc_n_Down
         downstream_model = POPEN.Model_Class(*POPEN.model_args)
-
         # merge 
         model = MTL_models.Enc_n_Down(pretrain_model,downstream_model).to(device)
     
