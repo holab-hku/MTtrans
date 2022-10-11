@@ -17,7 +17,7 @@ import torch
 import utils
 from torch import optim
 import numpy as np 
-from models import MTL_models,reader,train_val
+from models import Modules,reader,train_val
 from models.ScheduleOptimizer import ScheduledOptim,scheduleoptim_dict_str
 from models.popen import Auto_popen
 from models.loss import Dynamic_Task_Priority,Dynamic_Weight_Averaging
