@@ -19,6 +19,8 @@ global log_dir
 global pth_dir
 # global cell_lines
 
+global egfp_seq
+
 with open(os.path.join(os.path.dirname(__file__),"machine_configure.json"),'r') as f:
     config = json.load(f)   
 
@@ -203,4 +205,5 @@ def resume(popen,optimizer,logger):
         return previous_epoch,previous_loss,previous_acc
         
     
-    
+egfp_seq = "atgggcgaattaagtaagggcgaggagctgttcaccggggtggtgcccatcctggtcgagctggacggcgacgtaaacggccacaagttcagcgtgtccggcgagggcgagggcgatgccacctacggcaagctgaccctgaagttcatctgcaccaccggcaagctgcccgtgccctggcccaccctcgtgaccaccctgacctacggcgtgcagtgcttcagccgctaccccgaccacatgaagcagcacgacttcttcaagtccgccatgcccgaaggctacgtccaggagcgcaccatcttct"
+eGFP_seq = egfp_seq.upper()
