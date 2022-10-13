@@ -15,7 +15,8 @@ eGFP_seq = utils.eGFP_seq
 
 data_dir= utils.data_dir
 csv_name = sys.argv[1]
-csv_path = os.path.join(data_dir, csv_name)
+csv_path = csv_name if os.path.exists(csv_name) else os.path.join(data_dir, csv_name)
+
 assert os.path.exists(csv_path), "csv not found"
 
 
