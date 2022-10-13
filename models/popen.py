@@ -40,7 +40,7 @@ class Auto_popen(object):
         self.Resumable = False
 
         # covariates for other input
-        self.n_covar = len(self.other_input_columns)
+        self.n_covar = len(self.other_input_columns) if self.other_input_columns is not None else 0
         
         # generate self.model_args
         self.get_model_config()
@@ -80,7 +80,7 @@ class Auto_popen(object):
                     'RL_gru':["tower_width","dropout_rate"],
                     'RL_FACS': ["tower_width","dropout_rate"],
                     'RL_hard_share':["tower_width","dropout_rate", "activation","cycle_set" ],
-                    'RL_covar_Reg':["tower_width","dropout_rate", "n_covar", "activation","cycle_set" ],
+                    'RL_covar_reg':["tower_width","dropout_rate", "activation", "n_covar", "cycle_set" ],
                     'RL_mish_gru':["tower_width","dropout_rate"],
                     # GP models
                     'GP_net': ['tower_width', 'dropout_rate', 'global_pooling', 'activation', 'cycle_set'],

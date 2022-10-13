@@ -217,10 +217,10 @@ class MTL_dataset(Dataset):
             item = X ,aux_labels
 
             if self.other_input_columns is not None:
-                input = [X]
+                input = []
                 for col in self.other_input_columns:
                     input.append(self.df.loc[:,col].values[index]) 
-                item = input,aux_labels
+                item = (X, input),aux_labels
 
         return item   
 
