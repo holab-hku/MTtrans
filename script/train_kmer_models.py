@@ -20,7 +20,8 @@ def get_kmer_input_shape(csv_name, kernel_size):
     MPA_U_test = pd.read_csv(os.path.join(utils.data_dir, f"{csv_name}_test.csv"))
 
     # dataset
-    test_DS = reader.kmer_scan_dataset(MPA_U_test, seq_col='utr', kmer_size=kernel_size, aux_columns='rl')
+    test_DS = reader.kmer_scan_dataset(MPA_U_test, seq_col='utr', 
+                                       kmer_size=kernel_size, aux_columns='rl')
     return np.multiply(*test_DS[0][0].shape)
 
 def get_kmer_dls(csv_name, kernel_size, seed):
