@@ -74,7 +74,12 @@ def pad_zeros(X,pad_to):
     zero padding at the right end of the sequence
     """
     if pad_to == 0:
-        pad_to = 8*(X.shape[0]//8 + 1) + 1
+        # pad_to = 8*(X.shape[0]//8 + 1) + 1
+        try:
+            seq_len = X.shape[0]
+        except:
+            seq_len = X[0].shape[0]
+        pad_to = 3*(seq_len//3 + 1) + 1
         
     seq_len = X.shape[0] if isinstance(X, np.ndarray) else X[0].shape[0]
     gap = pad_to - seq_len 
@@ -91,8 +96,12 @@ def pad_zeros(X,pad_to):
 def pack_seq(ds_zls:list,pad_to:int):
     X_ts = [X for X,Y in ds_zls]
     if pad_to == 0:
-        max_len = np.max([X.shape[0] for X in X_ts])
-        pad_to = (max_len//8+1)*8 +1
+        try:
+            max_len = np.max([X.shape[0] for X in X_ts])
+        except:
+            max_len = np.max([X[0].shape[0] for X in X_ts])
+        
+        pad_to = 3*(max_len//3 + 1) + 1
     
     if isinstance(X_ts[0],np.ndarray):
         X_packed = torch.stack([pad_zeros(X=x,pad_to=pad_to) for x in X_ts])
@@ -130,7 +139,8 @@ class mask_dataset(Dataset):
 
 class ribo_dataset(Dataset):
     
-    def __init__(self,DF,pad_to,trunc_len=50,seq_col='utr',aux_columns='TE_count',other_input_columns=None):
+    def __init__(self,DF, pad_to, trunc_len=50, seq_col='utr',
+                      aux_columns='TE_count', other_input_columns=None):
         """
         Dataset to trancate sequence and return in one-hot encoding way
         `dataset(DF,pad_to,trunc_len=50,seq_col='utr')`
@@ -179,7 +189,8 @@ class ribo_dataset(Dataset):
         
         
 class MTL_dataset(Dataset):
-    def __init__(self,DF,pad_to=100,seq_col='utr',aux_columns=None,other_input_columns=None,trunc_len=None):
+    def __init__(self, DF, pad_to=100, seq_col='utr', aux_columns=None,
+                other_input_columns=None, trunc_len=None):
         """
         the dataset for Multi-task learning, will return sequence in one-hot encoded version, together with some auxilary task label
         arguments:
@@ -316,7 +327,7 @@ def get_splited_dataloader(dataset_func, df_ls, ratio:list, batch_size, shuffle,
         
     return loader_ls
 
-def split_DF(data_path,split_like,ratio,kfold_cv,kfold_index=None,seed=42):
+def split_DF(data_path,split_like,ratio, kfold_cv, kfold_index=None,seed=42):
     
     class _cf_data(object):
         def __init__(self,data_path):
@@ -353,6 +364,15 @@ def split_DF(data_path,split_like,ratio,kfold_cv,kfold_index=None,seed=42):
     
     elif type(split_like) == list:
         df_ls = [_cf_data(data_path).data for data_path in split_like]
+
+    elif type(kfold_cv) == str:
+        full_df = pd.read_csv(os.path.join(data_dir,data_path),low_memory=False)
+        if kfold_cv in full_df.columns:
+            kfold_index = str(kfold_index) 
+            test = full_df.query(f"`{kfold_cv}` == @kfold_index")
+            train_val = full_df.query(f"`{kfold_cv}` != @kfold_index")
+            train, val = train_test_split(train_val, test_size=0.05)
+            df_ls = [train, val, test]
     
     else:
         full_df = _cf_data(data_path)
@@ -364,7 +384,6 @@ def split_DF(data_path,split_like,ratio,kfold_cv,kfold_index=None,seed=42):
         set_ls = random_split(full_df,lengths,generator=torch.Generator().manual_seed(seed)) 
         df_ls = [full_df._slice_(subset.indices) for subset in set_ls] # df.iloc [ idx ]
         
-            
     return df_ls
     
 def KFold_df_split(df,K,**kfoldargs):

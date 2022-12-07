@@ -172,24 +172,17 @@ if POPEN.Resumable:
 for epoch in range(POPEN.max_epoch-previous_epoch+1):
     epoch += previous_epoch
     
-    #          
-    logger.info("===============================|    epoch {}   |===============================".format(epoch))
-
-
-    train_val.iter_train(loader_set,model=model,optimizer=optimizer,popen=POPEN,epoch=epoch)
 
 #              -----------| validate |-----------   
-    logger.info("===============================| start validation |===============================")
-    verbose_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch)
-
+    logger.info("===============================| testing  |===============================")
+    verbose_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch, which_set=2)
+    # matching task performance influence what to save
+    
     if np.any(['r2' in key for key in verbose_dict.keys()]):
         val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'r2' in key])
     else:
         val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'acc' in key])
     val_total_loss = verbose_dict['Total']
-    
-    # matching task performance influence what to save
-    
     
     DICT ={"ran_epoch":epoch,"n_current_steps":optimizer.n_current_steps,"delta":optimizer.delta} if type(optimizer) == ScheduledOptim else {"ran_epoch":epoch}
     POPEN.update_ini_file(DICT,logger)
@@ -213,10 +206,10 @@ for epoch in range(POPEN.max_epoch-previous_epoch+1):
                 })
         
         # update the popen
-        POPEN.update_ini_file({'run_name':run_name,
-                            "ran_epoch":epoch,
-                            "best_acc":best_acc},
-                            logger)
+        r2_dict = {"test_%s"%key:values for key, values in verbose_dict.items() if 'r2' in key}
+        to_update = {'run_name':run_name, "ran_epoch":epoch,"best_acc":best_acc}
+
+        POPEN.update_ini_file(to_update.update(r2_dict),logger)
         
     elif (epoch - best_epoch >= 30)&((type(optimizer) == ScheduledOptim)):
         optimizer.increase_delta()

@@ -19,13 +19,16 @@ from scipy import stats
 from matplotlib import pyplot as plt
 from sklearn import cluster
 from sklearn.manifold import TSNE
+import ruptures as rpt
 from popen import Auto_popen
 
-class Maxium_activation_patch(object):
+tensor_2_numpy = lambda x: x.detach().cpu().numpy()
+
+class Maximum_activation_patch(object):
     def __init__(self, popen, which_layer, n_patch=9, kfold_index=None, device_string='cpu'):
         self.popen = popen
         self.layer = which_layer
-        self.popen.cuda_id = torch.device(device_string)
+        self.popen.cuda_id = torch.device("cuda:%s"%device_string) if device_string.isdigit() else torch.device('cpu')
         self.n_patch = n_patch
         self.kfold_index = kfold_index
         self.total_stride = np.product(popen.stride[:self.layer])
@@ -67,7 +70,7 @@ class Maxium_activation_patch(object):
     def get_filter_param(self, model):
         Conv_layer = model.soft_share.encoder[self.layer-1]
         
-        return next(Conv_layer[0][0].parameters()).detach().cpu().numpy()
+        return tensor_2_numpy( next(Conv_layer[0][0].parameters()) )
     
     def loading(self,task, which_set):
         model = self.load_model().to(self.popen.cuda_id)
@@ -75,6 +78,31 @@ class Maxium_activation_patch(object):
         self.df = dataloader.dataset.df
         return model, dataloader
     
+    @torch.no_grad()
+    def cumulative_rl_decision(self, task=None,which_set=0, extra_loader=None):
+        """
+        take out the memory h_i of each position and pass to output layer
+        Arg:
+            task : str
+            which_set : int, 0 : training set, 1 : val set, 2 : test set
+        """
+        model, dataloader= self.loading(task, which_set)
+        model.eval()
+        
+        Y_ls = []
+        for Data in tqdm(dataloader):
+            # iter each batch
+            x,y = train_val.put_data_to_cuda(Data,self.popen,False)
+            x = torch.transpose(x, 1, 2)
+            y_pred = model.predict_each_position(x)
+            Y_ls.append( tensor_2_numpy(y_pred) )
+        Y_ay = np.concatenate(Y_ls, axis=0)
+        
+        # release some cache
+        torch.cuda.empty_cache()
+        del model
+        return Y_ay.reshape(Y_ay.shape[0],-1)
+        
     def extract_feature_map(self, task=None,which_set=0, extra_loader=None):
         """
         load trained model and unshuffled dataloader, make model forwarded
@@ -98,12 +126,12 @@ class Maxium_activation_patch(object):
                 x,y = train_val.put_data_to_cuda(Data,self.popen,False)
                 x = torch.transpose(x, 1, 2)
 #                 X_ls.append(x.numpy())
-                Y_ls.append(y.detach().cpu().numpy())
+                Y_ls.append( tensor_2_numpy(y))
                 
                 for layer in model.soft_share.encoder[:self.layer]:
                     out = layer(x)
                     x = out
-                feature_map.append(out.detach().cpu().numpy())
+                feature_map.append( tensor_2_numpy(out))
                 
                 torch.cuda.empty_cache()
             
@@ -153,7 +181,46 @@ class Maxium_activation_patch(object):
         
         end = virtual_start + self.r
         return max(0,int(start)), int(end)
+    
+    def detect_changepoint(self,time_series):
+        bkpt = rpt.KernelCPD(kernel="linear", min_size=1).fit_predict(time_series, n_bkps=1)[0]
+        return bkpt - 1        
+    
+    def retrieve_featmap_at_changepoint(self, featmap, rl_chain, threshold=1, direction='less', detect_region=None):
+        """
+        Using the change point of rl series, to retrieve feature map at the same position
+        e.g. : to find negative change point threshold=-1, direction='less'
+        e.g. : to find positive change point threshold=0.5, direction='greater'
+        
+        featmap : np.ndarray, (n_sample, n_channel, n_position)
+        rl_chain : np.ndarray, (n_sample,  n_position)
 
+        threshold : the threshold define the rl after change point minus that ahead the point that are considered
+        direction : the direction of changes
+        detect_region : list of slice [], which region of the rl chain is used to detect change point, default None (full sequence is considered)
+        """
+        # take out the negative break point
+        
+        if direction == 'less':
+            condition = lambda x1, x2 : x1 - x2 < threshold
+        elif direction == 'greater':
+            condition = lambda x1, x2 : x1 - x2 > threshold
+
+        if detect_region is None:
+            detect_region = [slice(0, None)] * rl_chain.shape[0]
+
+        change_point_act = []
+        for i, trend in enumerate(rl_chain):
+            region = detect_region[i]
+            bkpt= self.detect_changepoint(trend[region]) + region.start
+
+            if condition(trend[bkpt+1] , trend[bkpt]): 
+                activation_vec = featmap[i, :, bkpt+1]
+                change_point_act.append(activation_vec)
+
+        chagnepoint_map = np.asarray(change_point_act)
+        return chagnepoint_map
+    
     def locate_MA_seq(self, channel, feature_map=None):
         """
         
@@ -189,7 +256,7 @@ class Maxium_activation_patch(object):
         
         full_field = [len(field)==self.r for field in max_act_region]
         
-        return np.array(max_act_region)[full_field], max_n_index[full_field], max_patch[full_field]
+        return np.array(max_act_region)[full_field], max_n_index[full_field], np.array(mapped_input_sites)[full_field]
     
     def sequence_to_matrix(self, max_act_region, weight=None, transformation='counts'):
         
@@ -343,12 +410,15 @@ class Maxium_activation_patch(object):
         ranges = array.max() -  array.min()
         return (array-meann)/ranges
     
-    def get_input_grad(self, task, focus=True, fm=None):
+    def get_input_grad(self, task, focus=True, fm=None, starting_layer=None):
         """
         compute the gradience of Y over feature_map
+        fm : specify feature map
+        starting_layer: or None [0,3]
         """
         All_grad = []
-        model = self.load_model()
+        current_layer = self.layer if starting_layer is None else starting_layer
+        model = self.load_model().to(self.popen.cuda_id)
         model.train()
         if fm is None:
             fm = self.feature_map
@@ -356,12 +426,15 @@ class Maxium_activation_patch(object):
         for start in tqdm(range(0, fm.shape[0], 64)):
             # prepare input
             minibatch = fm[start:start+64]
-            X = torch.as_tensor(minibatch, device='cpu').float()
+            X = torch.as_tensor(minibatch, device=self.popen.cuda_id).float()
             X.requires_grad=True
 
             # forward
-            x = model.soft_share.encoder[3](X)
-            Z_t = torch.transpose(x, 1, 2)
+            # x = model.soft_share.encoder[3](X)
+            out=X
+            for layer in model.soft_share.encoder[current_layer:]:
+                out = layer(out)
+            Z_t = torch.transpose(out, 1, 2)
             h_prim,(c1,c2) = model.tower[task][0](Z_t)
             out = model.tower[task][1](c2)
 
@@ -374,13 +447,13 @@ class Maxium_activation_patch(object):
                 indices = self.argmax_to_indeces(np.argmax(minibatch, axis=2))
                 grad = grad[indices].reshape(-1,256)
             
-            All_grad.append(grad.detach().numpy())
+            All_grad.append( tensor_2_numpy(grad) )
         
         # concate each channel and average over input sequences
-        grad_ay = np.concatenate(All_grad, axis=0).mean(axis=0)
+        grad_ay = np.concatenate(All_grad, axis=0)#.mean(axis=0)
 
-        return self.gradience_scaler(grad_ay)
-            
+        # return self.gradience_scaler(grad_ay)
+        return grad_ay  
             
     def argmax_to_indeces(self,index):
         "index : of shape [batch, 256] , the result of "
@@ -432,7 +505,7 @@ def generate_scramble_index(size  , N_1):
     return scramble_index    
 
 
-class merge_task_map(Maxium_activation_patch):
+class merge_task_map(Maximum_activation_patch):
     def __init__(self, popen, which_layer, n_patch , kfold_index=None, device_string='cpu'):
         """merging all tasksa"""
         super().__init__(popen, which_layer, n_patch , kfold_index, device_string)
@@ -581,7 +654,7 @@ class merge_task_map(Maxium_activation_patch):
             grads[task] = super().get_input_grad(focus=True, task=task, fm=self.feature_map[task]) 
         return grads
 
-class Maximum_activation_kmer(Maxium_activation_patch):
+class Maximum_activation_kmer(Maximum_activation_patch):
     def __init__(self,popen, which_layer, n_patch, kfold_index):
         super().__init__(popen, which_layer, n_patch, kfold_index)
         self.virtual_pad = 0
@@ -620,12 +693,12 @@ class Maximum_activation_kmer(Maxium_activation_patch):
                 x,y = train_val.put_data_to_cuda(Data,self.popen,False)
                 x = torch.transpose(x, 1, 2)
 #                 X_ls.append(x.numpy())
-                Y_ls.append(y.detach().cpu().numpy())
+                Y_ls.append( tensor_2_numpy(y) )
                 
                 for layer in model.soft_share.encoder[:self.layer]:
                     out = layer(x)
                     x = out
-                feature_map.append(out.detach().cpu().numpy())
+                feature_map.append( tensor_2_numpy(out) )
                 
                 torch.cuda.empty_cache()
             
@@ -686,3 +759,4 @@ def extract_meme(memepath):
             all_blocks.append( all_lines[i:i+3+width])
             
     return all_blocks
+

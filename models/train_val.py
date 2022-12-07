@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import utils
 import torch
 from torch import optim
+from sklearn.metrics import r2_score
 from models.ScheduleOptimizer import ScheduledOptim , find_lr
 from models.loss import Dynamic_Task_Priority as DTP
 
@@ -218,7 +219,7 @@ def iter_train(loader_dict, model, optimizer, popen, epoch, verbose=True):
             with torch.cuda.device(popen.cuda_id):
                 torch.cuda.empty_cache()
 
-def cycle_validate(loader_dict, model, optimizer, popen, epoch):
+def cycle_validate(loader_dict, model, optimizer, popen, epoch , which_set=1):
 
     logger = logging.getLogger("VAE")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -228,8 +229,7 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch):
     # ====== set up empty =====
     # model.loss_dict_keys = ['RL_loss', 'Recons_loss', 'Motif_loss', 'Total', 'RL_Acc', 'Recons_Acc', 'Motif_Acc']
     verbose_list=[]
-    Y_ls = []
-    pred_ls = []
+    r2_dict = {}
     # ======== evaluate =======
     
     
@@ -240,14 +240,17 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch):
         # # logger.info("        =======================|     fix      |=======================        ")
         # model = utils.fix_parameter(model, popen.modual_to_fix[0])
         # train(dataloader[0], model, optimizer, popen, epoch, verbose=True)
-        
+        Y_ls = []
+        pred_ls = []
         with torch.no_grad():
             model.eval()
-            for idx,data in enumerate(dataloader[1]):
+            for idx,data in enumerate(dataloader[which_set]):
                 X,Y = put_data_to_cuda(data,popen,require_grad=False)
-                
                 out = model(X)
-                # TODO : debug here
+
+                Y_ls.append(Y.detach().cpu().numpy())
+                pred_ls.append(out.detach().cpu().numpy())
+
                 loss_dict = model.compute_loss(out,X,Y,popen)
                 loss_dict['%s_loss'%subset] = loss_dict['Total']
                 acc_dict = model.compute_acc(out,X,Y,popen)
@@ -259,7 +262,10 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch):
                 if popen.cuda_id != torch.device('cpu'):
                     with torch.cuda.device(popen.cuda_id):  
                         torch.cuda.empty_cache()
-                
+        
+        Y_ay = np.concatenate(Y_ls,axis=0).flatten()
+        pred_ay = np.concatenate(pred_ls,axis=0).flatten()
+        r2_dict[f"{subset}_r2"] = r2_score(Y_ay, pred_ay)
           # # average among batch
     
     # ======== verbose ========
@@ -268,9 +274,11 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch):
         
     val_verbose = ""
     verbose_args = []
-    for key in verbose_df.columns:
+    verbose_dict = {key:verbose_df[key].mean() for key in verbose_df.columns}
+    verbose_dict.update(r2_dict)
+    for key,values in verbose_dict.items():
         val_verbose += "\t %s:{:.7f}"%key
-        verbose_args.append(verbose_df[key].mean())
+        verbose_args.append(values)
         
     val_verbose = val_verbose.format(*verbose_args)                         
 
@@ -281,7 +289,7 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch):
     Avg_acc = np.mean(verbose_df.loc[:,acc_col].mean(axis=0))  
     
     
-    return (verbose_df['Total'].mean(),Avg_acc) if 'RL_loss' not in verbose_df.keys() else (verbose_df['RL_loss'].mean(),verbose_df['RL_Acc'].mean())
+    return verbose_dict
 
          
 def put_data_to_cuda(data,popen,require_grad=True):
