@@ -81,6 +81,7 @@ class Auto_popen(object):
                     'RL_FACS': ["tower_width","dropout_rate"],
                     'RL_hard_share':["tower_width","dropout_rate", "activation","cycle_set" ],
                     'RL_covar_reg':["tower_width","dropout_rate", "activation", "n_covar", "cycle_set" ],
+                    'RL_covar_intercept':["tower_width","dropout_rate", "activation", "n_covar", "cycle_set" ],
                     'RL_mish_gru':["tower_width","dropout_rate"],
                     # GP models
                     'GP_net': ['tower_width', 'dropout_rate', 'global_pooling', 'activation', 'cycle_set'],

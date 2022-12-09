@@ -61,7 +61,6 @@ for subset in POPEN.cycle_set:
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3M/schedule_lr.ini')
         datapopen.split_like = [path.replace('cycle', subset) for path in base_path]
         datapopen.kfold_index = args.kfold_index
-        
         datapopen.other_input_columns = POPEN.other_input_columns
         datapopen.n_covar = POPEN.n_covar
 
@@ -69,9 +68,18 @@ for subset in POPEN.cycle_set:
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
         datapopen.csv_path = base_csv.replace("cycle",subset)
         datapopen.kfold_index = args.kfold_index
-
+        datapopen.pad_to = POPEN.pad_to
         datapopen.other_input_columns = POPEN.other_input_columns
         datapopen.n_covar = POPEN.n_covar
+
+    elif (subset in ['pcr3', '293']):
+        datapopen = Auto_popen('log/Backbone/RL_hard_share/karollus_RPs/rp_cycle.ini')
+        datapopen.csv_path = base_csv.replace("cycle",subset)
+        datapopen.kfold_index = args.kfold_index
+        datapopen.other_input_columns = POPEN.other_input_columns
+        datapopen.pad_to = POPEN.pad_to
+        datapopen.n_covar = POPEN.n_covar
+    
 
     loader_set[subset] = reader.get_dataloader(datapopen)
 
@@ -183,8 +191,13 @@ for epoch in range(POPEN.max_epoch-previous_epoch+1):
 
 #              -----------| validate |-----------   
     logger.info("===============================| start validation |===============================")
-    val_total_loss,val_avg_acc = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch)
-    # matching task performance influence what to save
+    verbose_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch, which_set=1)
+
+    if np.any(['r2' in key for key in verbose_dict.keys()]):
+        val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'r2' in key])
+    else:
+        val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'acc' in key])
+    val_total_loss = verbose_dict['Total']
     
     
     DICT ={"ran_epoch":epoch,"n_current_steps":optimizer.n_current_steps,"delta":optimizer.delta} if type(optimizer) == ScheduledOptim else {"ran_epoch":epoch}

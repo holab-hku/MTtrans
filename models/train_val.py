@@ -7,6 +7,7 @@ import logging
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import utils
 import torch
+from scipy.stats import pearsonr
 from torch import optim
 from sklearn.metrics import r2_score
 from models.ScheduleOptimizer import ScheduledOptim , find_lr
@@ -266,6 +267,8 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch , which_set=1):
         Y_ay = np.concatenate(Y_ls,axis=0).flatten()
         pred_ay = np.concatenate(pred_ls,axis=0).flatten()
         r2_dict[f"{subset}_r2"] = r2_score(Y_ay, pred_ay)
+        r2_dict[f"{subset}_pr"] = pearsonr(Y_ay, pred_ay)[0]
+
           # # average among batch
     
     # ======== verbose ========

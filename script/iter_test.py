@@ -53,28 +53,38 @@ POPEN.check_experiment(logger)
 #                               |===========   setup  part  ==========|
 #                               |=====================================|
 # read data
-loader_set = {}                                                                                                                                                                                                                                                                                                                 
+loader_set = {}          
+n_covar_dict = {}                                                                                                                                                                                                                                                                                                       
 base_path = ['cycle_train_val.csv', 'cycle_test.csv']
 base_csv = 'cycle_MTL_transfer.csv'
-for subset in POPEN.cycle_set:
-    if (subset in ['MPA_U', 'MPA_H', 'MPA_V', 'SubMPA_H']):
+for task in POPEN.cycle_set:
+    if (task in ['MPA_U', 'MPA_H', 'MPA_V', 'SubMPA_H']):
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3M/schedule_lr.ini')
-        datapopen.split_like = [path.replace('cycle', subset) for path in base_path]
+        datapopen.split_like = [path.replace('cycle', task) for path in base_path]
         datapopen.kfold_index = args.kfold_index
-        
-        datapopen.other_input_columns = POPEN.other_input_columns
-        datapopen.n_covar = POPEN.n_covar
+        n_covar_dict[task] = datapopen.n_covar
 
-    elif (subset in ['RP_293T', 'RP_muscle', 'RP_PC3', 'pcr3', '293']):
+    elif (task in ['RP_293T', 'RP_muscle', 'RP_PC3']):
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
-        datapopen.csv_path = base_csv.replace("cycle",subset)
+        datapopen.csv_path = base_csv.replace("cycle",task)
         datapopen.kfold_index = args.kfold_index
-
+        datapopen.pad_to = POPEN.pad_to
         datapopen.other_input_columns = POPEN.other_input_columns
         datapopen.n_covar = POPEN.n_covar
+        n_covar_dict[task] = datapopen.n_covar
 
-    loader_set[subset] = reader.get_dataloader(datapopen)
+    elif (task in ['pcr3', '293']):
+        datapopen = Auto_popen('log/Backbone/RL_hard_share/karollus_RPs/rp_cycle.ini')
+        datapopen.csv_path = base_csv.replace("cycle",task)
+        datapopen.kfold_index = args.kfold_index
+        datapopen.other_input_columns = POPEN.other_input_columns
+        datapopen.pad_to = POPEN.pad_to
+        datapopen.n_covar = POPEN.n_covar
+        n_covar_dict[task] = datapopen.n_covar
+    loader_set[task] = reader.get_dataloader(datapopen)
 
+POPEN.n_covar = n_covar_dict
+POPEN.get_model_config() # update model config
     
 # ===========  setup model  ===========
 # train_iter = iter(train_loader)
@@ -190,29 +200,10 @@ else:
     acc_dict = {}
 val_total_loss = verbose_dict['Total']
 
-DICT ={"ran_epoch":epoch,"n_current_steps":optimizer.n_current_steps,"delta":optimizer.delta} if type(optimizer) == ScheduledOptim else {"ran_epoch":epoch}
-POPEN.update_ini_file(DICT,logger)
+# DICT ={"ran_epoch":epoch,"n_current_steps":optimizer.n_current_steps,"delta":optimizer.delta} if type(optimizer) == ScheduledOptim else {"ran_epoch":epoch}
+# POPEN.update_ini_file(DICT,logger)
     
     
-#    -----------| compare the result |-----------
-if (best_loss > val_total_loss) :
-    # update best performance
-    best_loss = min(best_loss,val_total_loss)
-    best_acc = max(best_acc,val_avg_acc)
-    best_epoch = epoch
-    
-    # save
-    utils.snapshot(POPEN.vae_pth_path, {
-                'epoch': epoch + 1,
-                'validation_acc': val_avg_acc,
-                # 'state_dict': model.state_dict(),
-                'state_dict': model,
-                'validation_loss': val_total_loss,
-                'optimizer': optimizer.state_dict(),
-            })
-    
-    # update the popen
-    # r2_dict = {f"cv{args.kfold_index}_{key}":values for key, values in verbose_dict.items() if 'r2' in key}
-    to_update = {'run_name':run_name, "ran_epoch":epoch,"best_acc":best_acc}
 
-    POPEN.update_ini_file(to_update.update(acc_dict),logger)
+
+# POPEN.update_ini_file(acc_dict,logger)

@@ -53,33 +53,39 @@ POPEN.check_experiment(logger)
 #                               |===========   setup  part  ==========|
 #                               |=====================================|
 # read data
-loader_set = {}                                                                                                                                                                                                                                                                                                                 
+loader_set = {}          
+n_covar_dict = {}                                                                                                                                                                                                                                                                                                       
 base_path = ['cycle_train_val.csv', 'cycle_test.csv']
 base_csv = 'cycle_MTL_transfer.csv'
-n_covar_dict = {}
 for task in POPEN.cycle_set:
     if (task in ['MPA_U', 'MPA_H', 'MPA_V', 'SubMPA_H']):
-        datapopen = Auto_popen('log/Backbone/RL_covar_reg/3M/no_covar.ini')
+        datapopen = Auto_popen('log/Backbone/RL_covar_intercept/3M/no_covar.ini')
         datapopen.split_like = [path.replace('cycle', task) for path in base_path]
         datapopen.kfold_index = args.kfold_index
-        
-        datapopen.other_input_columns = POPEN.other_input_columns
-        # datapopen.n_covar = POPEN.n_covar
         n_covar_dict[task] = datapopen.n_covar
 
-    elif (task in ['RP_293T', 'RP_muscle', 'RP_PC3', 'pcr3', '293']):
-        datapopen = Auto_popen('log/Backbone/RL_covar_reg/karollus_RPs/rp_cycle.ini')
+    elif (task in ['RP_293T', 'RP_muscle', 'RP_PC3']):
+        datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
         datapopen.csv_path = base_csv.replace("cycle",task)
         datapopen.kfold_index = args.kfold_index
         datapopen.pad_to = POPEN.pad_to
         datapopen.other_input_columns = POPEN.other_input_columns
         datapopen.n_covar = POPEN.n_covar
-        n_covar_dict[task] = POPEN.n_covar
+        n_covar_dict[task] = datapopen.n_covar
 
+    elif (task in ['pcr3', '293']):
+        datapopen = Auto_popen('log/Backbone/RL_hard_share/karollus_RPs/rp_cycle.ini')
+        datapopen.csv_path = base_csv.replace("cycle",task)
+        datapopen.kfold_index = args.kfold_index
+        datapopen.other_input_columns = POPEN.other_input_columns
+        datapopen.pad_to = POPEN.pad_to
+        datapopen.n_covar = POPEN.n_covar
+        n_covar_dict[task] = datapopen.n_covar
     loader_set[task] = reader.get_dataloader(datapopen)
 
 POPEN.n_covar = n_covar_dict
 POPEN.get_model_config() # update model config
+    
     
 # ===========  setup model  ===========
 # train_iter = iter(train_loader)
