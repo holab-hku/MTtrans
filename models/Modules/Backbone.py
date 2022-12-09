@@ -169,7 +169,7 @@ class RL_gru(RL_regressor):
         out_series = self.fc_out(h_prim)
         return out_series
 
-class RL_hard_share(RL_gru):
+class RL_hard_share(RL_regressor):
     def __init__(self,conv_args,tower_width=40,dropout_rate=0.2,activation='ReLU', tasks =['unmod1', 'human', 'vleng']):
         """
         Ribosome Loading Prediction with Hard-sharing;
@@ -256,7 +256,7 @@ class RL_covar_reg(RL_hard_share):
         """      
         super().__init__(conv_args, tower_width, dropout_rate=dropout_rate, activation=activation, tasks=tasks)
         self.all_tasks = tasks
-        self.configure_towerwidt(tower_width)
+        self.configure_towerwidth(tower_width)
         self.configure_covariate(n_covar)
         
         tower_block = lambda c, w , n : nn.ModuleList([nn.GRU(input_size=c,
@@ -282,14 +282,19 @@ class RL_covar_reg(RL_hard_share):
             raise TypeError("`n_covar` can only be int, list and dict")
 
     
-    def forward(self, X):
-        
+    def encode(self, X):
         task = self.task # pass in cycle_train.py
         X_seq, X_covar = X
         assert X_covar.shape[1] == self.n_covar[task], "the # of covariates is not consistent with the model params"
 
         # Con block
         Z = self.soft_share(X_seq)
+        return Z
+
+    def forward(self, X):
+        task = self.task # pass in cycle_train.py
+        X_seq, X_covar = X
+        Z = self.encode(X)
         # tower
         Z_t = torch.transpose(Z, 1, 2)
         h_prim,(c1,c2) = self.tower[task][0](Z_t)
@@ -319,6 +324,38 @@ class RL_covar_reg(RL_hard_share):
         out_series = self.tower[task][1](linear_factor)
         return out_series
 
+class RL_covar_intersect(RL_covar_reg):
+    def __init__(self,conv_args,tower_width:int=40, 
+                    dropout_rate:float=0.2, activation:str='ReLU',  
+                    n_covar:Union[dict, list, int]=1,
+                    tasks:list=['unmod1', 'human', 'vleng']):
+        super().__init__(conv_args=conv_args,tower_width=tower_width, dropout_rate=dropout_rate, 
+                            activation=activation,  n_covar=n_covar, tasks=tasks)
+
+        tower_block = lambda c, w , n : nn.ModuleList([nn.GRU(input_size=c,
+                                                            hidden_size=w,
+                                                            num_layers=2,
+                                                            batch_first=True),
+                                                    # covariate is added here
+                                                    nn.Linear(w ,1),
+                                                    nn.Linear(1+n ,1),
+                                                    ])
+
+        c = self.channel_ls[-1]
+        self.tower = nn.ModuleDict({t: tower_block(c, self.tower_width[t], self.n_covar[t]) for t in self.all_tasks})
+    
+    def forward(self, X):
+        task = self.task # pass in cycle_train.py
+        X_seq, X_covar = X
+        Z = self.encode(X)
+        # tower
+        Z_t = torch.transpose(Z, 1, 2)
+        h_prim,(c1,c2) = self.tower[task][0](Z_t)
+        intersect = self.tower[task][1](c2)
+        # concate
+        linear_factor = torch.cat([intersect, X_covar], dim=1)
+        out = self.tower[task][2](linear_factor)
+        return out
 
 class RL_clf(RL_gru):
 
@@ -349,17 +386,8 @@ class RL_clf(RL_gru):
     
     def compute_acc(self,out,X,Y,popen=None):
             
-        # out,Y = self.squeeze_out_Y(out,Y)
-        # error smaller than epsilon
         with torch.no_grad():
             acc = torch.sum(torch.argmax(out,dim=1) == Y.view(-1))/ Y.shape[0]
-            # y_true = np.zeros((Y.shape[0],popen.n_class))
-            
-            # Y_int = np.array(Y.cpu().numpy(),dtype=np.int64)
-            # for i,clas in enumerate(Y_int):
-            #     y_true[i,int(clas)] = 1
-                
-            # auroc = roc_auc_score(Y_int,out.detach().cpu().numpy(),multi_class='ovr')
         return {"Acc":acc}
     
     def compute_loss(self,out,X,Y,popen):
@@ -368,4 +396,3 @@ class RL_clf(RL_gru):
         loss_fn=nn.CrossEntropyLoss()
         loss = loss_fn(out,Y) + popen.l1 * torch.sum(torch.abs(next(self.soft_share.encoder[0].parameters()))) 
         return {"Total":loss}
-

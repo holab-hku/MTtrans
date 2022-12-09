@@ -55,7 +55,7 @@ POPEN.check_experiment(logger)
 # read data
 loader_set = {}                                                                                                                                                                                                                                                                                                                 
 base_path = ['cycle_train_val.csv', 'cycle_test.csv']
-base_csv = 'Karollus_cycle.csv'
+base_csv = 'cycle_MTL_transfer.csv'
 n_covar_dict = {}
 for task in POPEN.cycle_set:
     if (task in ['MPA_U', 'MPA_H', 'MPA_V', 'SubMPA_H']):
@@ -67,7 +67,7 @@ for task in POPEN.cycle_set:
         # datapopen.n_covar = POPEN.n_covar
         n_covar_dict[task] = datapopen.n_covar
 
-    elif (task in ['293', 'pcr3']):
+    elif (task in ['RP_293T', 'RP_muscle', 'RP_PC3', 'pcr3', '293']):
         datapopen = Auto_popen('log/Backbone/RL_covar_reg/karollus_RPs/rp_cycle.ini')
         datapopen.csv_path = base_csv.replace("cycle",task)
         datapopen.kfold_index = args.kfold_index
@@ -178,7 +178,7 @@ for epoch in range(POPEN.max_epoch-previous_epoch+1):
 
     train_val.iter_train(loader_set,model=model,optimizer=optimizer,popen=POPEN,epoch=epoch)
 
-#              -----------| validate |-----------   
+    #              -----------| validate |-----------   
     logger.info("===============================| start validation |===============================")
     verbose_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch)
 

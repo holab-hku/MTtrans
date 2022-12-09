@@ -65,7 +65,7 @@ for subset in POPEN.cycle_set:
         datapopen.other_input_columns = POPEN.other_input_columns
         datapopen.n_covar = POPEN.n_covar
 
-    elif (subset in ['RP_293T', 'RP_muscle', 'RP_PC3']):
+    elif (subset in ['RP_293T', 'RP_muscle', 'RP_PC3', 'pcr3', '293']):
         datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
         datapopen.csv_path = base_csv.replace("cycle",subset)
         datapopen.kfold_index = args.kfold_index
@@ -181,8 +181,6 @@ epoch += previous_epoch
 logger.info("===============================| test |===============================")
 verbose_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch, which_set=2)
 # matching task performance influence what to save
-
-
 
 if np.any(['r2' in key for key in verbose_dict.keys()]):
     val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'r2' in key])
