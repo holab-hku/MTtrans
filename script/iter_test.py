@@ -55,31 +55,26 @@ POPEN.check_experiment(logger)
 # read data
 loader_set = {}                                                                                                                                                                                                                                                                                                                 
 base_path = ['cycle_train_val.csv', 'cycle_test.csv']
-base_csv = 'Karollus_cycle.csv'
-n_covar_dict = {}
-for task in POPEN.cycle_set:
-    if (task in ['MPA_U', 'MPA_H', 'MPA_V', 'SubMPA_H']):
-        datapopen = Auto_popen('log/Backbone/RL_covar_reg/3M/no_covar.ini')
-        datapopen.split_like = [path.replace('cycle', task) for path in base_path]
+base_csv = 'cycle_MTL_transfer.csv'
+for subset in POPEN.cycle_set:
+    if (subset in ['MPA_U', 'MPA_H', 'MPA_V', 'SubMPA_H']):
+        datapopen = Auto_popen('log/Backbone/RL_hard_share/3M/schedule_lr.ini')
+        datapopen.split_like = [path.replace('cycle', subset) for path in base_path]
         datapopen.kfold_index = args.kfold_index
         
         datapopen.other_input_columns = POPEN.other_input_columns
-        # datapopen.n_covar = POPEN.n_covar
-        n_covar_dict[task] = datapopen.n_covar
+        datapopen.n_covar = POPEN.n_covar
 
-    elif (task in ['293', 'pcr3']):
-        datapopen = Auto_popen('log/Backbone/RL_covar_reg/karollus_RPs/rp_cycle.ini')
-        datapopen.csv_path = base_csv.replace("cycle",task)
+    elif (subset in ['RP_293T', 'RP_muscle', 'RP_PC3']):
+        datapopen = Auto_popen('log/Backbone/RL_hard_share/3R/schedule_MTL.ini')
+        datapopen.csv_path = base_csv.replace("cycle",subset)
         datapopen.kfold_index = args.kfold_index
-        datapopen.pad_to = POPEN.pad_to
+
         datapopen.other_input_columns = POPEN.other_input_columns
         datapopen.n_covar = POPEN.n_covar
-        n_covar_dict[task] = POPEN.n_covar
 
-    loader_set[task] = reader.get_dataloader(datapopen)
+    loader_set[subset] = reader.get_dataloader(datapopen)
 
-POPEN.n_covar = n_covar_dict
-POPEN.get_model_config() # update model config
     
 # ===========  setup model  ===========
 # train_iter = iter(train_loader)
@@ -123,9 +118,17 @@ if POPEN.pretrain_pth is not None:
         model = MTL_models.Enc_n_Down(pretrain_model,downstream_model).to(device)
     
 # -- end2end -- 
+elif POPEN.model_type == "CrossStitch_Model":
+    backbone = {}
+    for t in POPEN.tasks:
+        task_popen = Auto_popen(POPEN.backbone_config[t])
+        task_model = task_popen.Model_Class(*task_popen.model_args)
+        utils.load_model(task_popen,task_model,logger)
+        backbone[t] = task_model.to(device)
+    POPEN.model_args = [backbone] + POPEN.model_args
+    model = POPEN.Model_Class(*POPEN.model_args).to(device)
 else:
     Model_Class = POPEN.Model_Class  # DL_models.LSTM_AE 
-    
     model = Model_Class(*POPEN.model_args).to(device)
     
 if POPEN.Resumable:
@@ -162,18 +165,20 @@ best_loss = np.inf
 best_acc = 0
 best_epoch = 0
 previous_epoch = 0
+epoch = 0
 if POPEN.Resumable:
     previous_epoch,best_loss,best_acc = utils.resume(POPEN, optimizer,logger)
-    epoch = previous_epoch
     
 
 #                               |=====================================|
-#                               |==========  test  part ==========|
+#                               |==========  training  part ==========|
 #                               |=====================================|
+epoch += previous_epoch
 
-    
 
-logger.info("===============================| testing  |===============================")
+
+#              -----------| validate |-----------   
+logger.info("===============================| test |===============================")
 verbose_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch, which_set=2)
 # matching task performance influence what to save
 
