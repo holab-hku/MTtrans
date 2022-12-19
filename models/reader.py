@@ -308,6 +308,7 @@ def get_splited_dataloader(dataset_func, df_ls, ratio:list, batch_size, shuffle,
         col_fn = lambda x: pack_seq(x,0)
         sampler_ls = [{"batch_sampler":Bucket_Sampler(df,batch_size=batch_size,drop_last=True),
                        "num_workers":4,
+                       "drop_last":False,
                        "collate_fn":col_fn} for df in df_ls]
         #  wrap dataset to dataloader
         loader_ls = [DataLoader(subset,**kwargs) for subset,kwargs in zip(set_ls,sampler_ls)]
@@ -315,6 +316,7 @@ def get_splited_dataloader(dataset_func, df_ls, ratio:list, batch_size, shuffle,
         col_fn = lambda x: pack_seq(x,pad_to)
         loaderargs = {"batch_size": batch_size,
                         "generator":torch.Generator().manual_seed(42),
+                        "drop_last":False ,
                         "num_workers":4,
                         "shuffle":shuffle,
                         "collate_fn":col_fn}

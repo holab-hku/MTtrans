@@ -18,7 +18,7 @@ class Auto_popen(object):
         self.data_dir = utils.data_dir
         self.log_dir = utils.log_dir
         self.pth_dir = utils.pth_dir
-        self.set_attr_as_none(['te_net_l2','loss_fn','modual_to_fix','other_input_columns','pretrain_pth'])
+        self.set_attr_as_none(['te_net_l2','loss_fn','modual_to_fix','other_input_columns','pretrain_pth','kfold_index'])
         self.split_like = False
         self.loss_schema = 'constant'
         
@@ -35,7 +35,7 @@ class Auto_popen(object):
         # the saving direction
         self.path_category = self.config_file.split('/')[-4]
         self.vae_log_path = config_file.replace('.ini','.log')
-        self.vae_pth_path = os.path.join(self.pth_dir,self.model_type+self._dataset,self.setting_name,self.run_name + '-model_best.pth')
+        
 
         self.Resumable = False
 
@@ -44,6 +44,16 @@ class Auto_popen(object):
         
         # generate self.model_args
         self.get_model_config()
+
+    @property
+    def vae_pth_path(self):
+        save_to = os.path.join(self.pth_dir,self.model_type+self._dataset,self.setting_name)
+        if self.kfold_index is None:
+            pth = os.path.join(save_to, self.run_name + '-model_best.pth')
+        elif type(self.kfold_index) == int:
+            k = self.kfold_index
+            pth = os.path.join(save_to, self.run_name + f'-model_best_cv{k}.pth')
+        return pth
     
     def set_attr_from_dict(self,attr_ls):
         for attr in attr_ls:

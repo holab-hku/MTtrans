@@ -9,7 +9,7 @@ import utils
 import torch
 from scipy.stats import pearsonr
 from torch import optim
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, f1_score, roc_auc_score
 from models.ScheduleOptimizer import ScheduledOptim , find_lr
 from models.loss import Dynamic_Task_Priority as DTP
 
@@ -93,13 +93,15 @@ def validate(dataloader,model,popen,epoch):
     verbose_list=[]
     Y_ls = []
     pred_ls = []
+    metric_dict = {}
     # ======== evaluate =======
     model.eval()
     with torch.no_grad():
         for idx,data in enumerate(dataloader):
             X,Y = put_data_to_cuda(data,popen,require_grad=False)
-            
+            Y_ls.append(Y.cpu().numpy())
             out = model(X)
+            pred_ls.append(out.cpu().numpy())
             loss_dict = model.compute_loss(out,X,Y,popen)
             loss = loss_dict['Total']
             acc_dict = model.compute_acc(out,X,Y,popen)
@@ -115,15 +117,27 @@ def validate(dataloader,model,popen,epoch):
           # # average among batch
     
     # ======== verbose ========
+    Y_ay = np.concatenate(Y_ls,axis=0).flatten()
+    pred_ay = np.concatenate(pred_ls,axis=0).flatten()
+
+    if popen.model_type == 'RL_clf':
+        metric_dict["F1"] = f1_score(Y_ay, pred_ay>0.5, average='binary')
+        metric_dict["AUROC"] = roc_auc_score(Y_ay, pred_ay)
+    else:
+        metric_dict[f"r2"] = r2_score(Y_ay, pred_ay)
+        metric_dict[f"pr"] = pearsonr(Y_ay, pred_ay)[0]
     
     verbose_df = pd.json_normalize(verbose_list)
         
     val_verbose = ""
     verbose_args = []
-    for key in verbose_df.columns:
+    verbose_dict = {key:verbose_df[key].mean() for key in verbose_df.columns}
+    verbose_dict.update(metric_dict)
+
+    for key,values in verbose_dict.items():
         val_verbose += "\t %s:{:.7f}"%key
-        verbose_args.append(verbose_df[key].mean())
-        
+        verbose_args.append(values)
+
     val_verbose = val_verbose.format(*verbose_args)                         
 
     logger.info(val_verbose)
@@ -220,7 +234,7 @@ def iter_train(loader_dict, model, optimizer, popen, epoch, verbose=True):
             with torch.cuda.device(popen.cuda_id):
                 torch.cuda.empty_cache()
 
-def cycle_validate(loader_dict, model, optimizer, popen, epoch , which_set=1):
+def cycle_validate(loader_dict, model, optimizer, popen, epoch , which_set=1, return_=False):
 
     logger = logging.getLogger("VAE")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -231,6 +245,7 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch , which_set=1):
     # model.loss_dict_keys = ['RL_loss', 'Recons_loss', 'Motif_loss', 'Total', 'RL_Acc', 'Recons_Acc', 'Motif_Acc']
     verbose_list=[]
     r2_dict = {}
+    Y_n_pred = {}
     # ======== evaluate =======
     
     
@@ -266,6 +281,8 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch , which_set=1):
         
         Y_ay = np.concatenate(Y_ls,axis=0).flatten()
         pred_ay = np.concatenate(pred_ls,axis=0).flatten()
+        if return_:
+            Y_n_pred[subset] = (Y_ay, pred_ay)
         r2_dict[f"{subset}_r2"] = r2_score(Y_ay, pred_ay)
         r2_dict[f"{subset}_pr"] = pearsonr(Y_ay, pred_ay)[0]
 
@@ -291,8 +308,10 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch , which_set=1):
     acc_col = list(acc_dict.keys())
     Avg_acc = np.mean(verbose_df.loc[:,acc_col].mean(axis=0))  
     
-    
-    return verbose_dict
+    if return_:
+        return verbose_dict, Y_n_pred
+    else:
+        return verbose_dict
 
          
 def put_data_to_cuda(data,popen,require_grad=True):
