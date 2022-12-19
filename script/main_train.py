@@ -34,7 +34,7 @@ if POPEN.kfold_cv:
     if args.kfold_index is None:
         raise NotImplementedError("please specify the kfold index to perform K fold cross validation")
     POPEN.vae_log_path = POPEN.vae_log_path.replace(".log","_cv%d.log"%args.kfold_index)
-    POPEN.vae_pth_path = POPEN.vae_pth_path.replace(".pth","_cv%d.pth"%args.kfold_index)
+    #POPEN.vae_pth_path = POPEN.vae_pth_path.replace(".pth","_cv%d.pth"%args.kfold_index)
     
 
 # Run name
@@ -60,8 +60,11 @@ train_loader,val_loader,test_loader = reader.get_dataloader(POPEN)
 if POPEN.pretrain_pth is not None:
     # load pretran model
     pretrain_popen = Auto_popen(os.path.join(utils.script_dir, POPEN.pretrain_pth))
-    
     pretrain_model = pretrain_popen.Model_Class(*pretrain_popen.model_args)
+
+    if not os.path.exists(pretrain_popen.vae_pth_path):
+        if type(args.kfold_index) == int:
+            pretrain_popen.kfold_index = args.kfold_index
     pretrain_model = utils.load_model(pretrain_popen,pretrain_model,logger)
     
 
@@ -74,18 +77,26 @@ if POPEN.pretrain_pth is not None:
         del pretrain_model
     elif POPEN.modual_to_fix is not None:
         # POPEN.model_type != pretrain_popen.model_type
+        
         model = POPEN.Model_Class(*POPEN.model_args)
         for modual in POPEN.modual_to_fix:
             if modual in dir(pretrain_model):    
                 eval(f'model.{modual}').load_state_dict(
                     eval(f'model.{modual}').state_dict()
                     )
-        model =  model.to(device)
-    else:
-        downstream_model = POPEN.Model_Class(*POPEN.model_args)
 
-        # merge 
-        model = MTL_models.Enc_n_Down(pretrain_model,downstream_model).to(device)
+        state_dict = {'epoch': 0,
+                        'validation_acc': 0,
+                        'state_dict': model.to('cpu'),
+                        'validation_loss': np.inf}
+        shared_pretrain_pth = POPEN.vae_pth_path.replace(f"_cv{args.kfold_index}", '')
+        if not os.path.exists(shared_pretrain_pth):
+            utils.snapshot(shared_pretrain_pth, state_dict)
+        utils.snapshot(POPEN.vae_pth_path, state_dict)
+
+        model = torch.load(POPEN.vae_pth_path, map_location=torch.device('cpu'))['state_dict']
+        model = model.to(device)
+
     
 # -- end2end -- 
 elif POPEN.model_type == "CrossStitch_Model":
@@ -153,12 +164,13 @@ for epoch in range(POPEN.max_epoch-previous_epoch+1):
     if epoch % POPEN.config_dict['setp_to_check'] == 0:
         logger.info("===============================| start validation |===============================")
         val_total_loss,val_avg_acc = train_val.validate(val_loader,model,popen=POPEN,epoch=epoch)
+        _,_ = train_val.validate(test_loader,model,popen=POPEN,epoch=epoch)
         
         DICT ={"ran_epoch":epoch,"n_current_steps":optimizer.n_current_steps,"delta":optimizer.delta} if type(optimizer) == ScheduledOptim else {"ran_epoch":epoch}
         POPEN.update_ini_file(DICT,logger)
         
     #    -----------| compare the result |-----------
-        if (best_loss > val_total_loss) | (best_acc < val_avg_acc):
+        if (best_loss > val_total_loss): #| (best_acc < val_avg_acc):
             # update best performance
             best_loss = min(best_loss,val_total_loss)
             best_acc = max(best_acc,val_avg_acc)

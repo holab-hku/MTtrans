@@ -33,12 +33,10 @@ def get_kmer_input_shape(csv_name, kernel_size):
     return np.multiply(*test_DS[0][0].shape)
 
 def get_kmer_dls(csv_name, kernel_size, seed, seq_col, label_col):
-    full_df = pd.read_csv(csv_name)
-    train_val, test_df = train_test_split(full_df, test_size=0.1 ,random_state=global_seed)
-
-    val_df = train_val.sample(frac=0.1, random_state=seed)
-    train_df = pd.concat([train_val, val_df]).drop_duplicates(keep=False)
-
+    
+    print("seed = %s"%seed)
+    train_df, val_df, test_df = reader.split_DF(csv_name, None, [0.8,0.1,0.1], kfold_cv=True, kfold_index=seed,seed=43)
+    
     # dataset
     train_DS = reader.kmer_scan_dataset(train_df, seq_col=seq_col, kmer_size=kernel_size, aux_columns=label_col)
     val_DS = reader.kmer_scan_dataset(val_df, seq_col=seq_col, kmer_size=kernel_size, aux_columns=label_col)
@@ -108,13 +106,15 @@ class rnn_models(pl.LightningModule):
         self.save_hyperparameters()
         self.train_F1 = torchmetrics.F1Score()
         self.train_AUROC = torchmetrics.AUROC()
+        self.train_ACC = torchmetrics.Accuracy()
 
         self.val_F1 = torchmetrics.F1Score()
         self.val_AUROC = torchmetrics.AUROC()
+        self.val_ACC = torchmetrics.Accuracy()
 
         self.test_F1 = torchmetrics.F1Score()
         self.test_AUROC = torchmetrics.AUROC()
-
+        self.test_ACC = torchmetrics.Accuracy()
        
         tower = { f"GRU_layer" : nn.GRU(input_size=4**k, hidden_size=hidden,
                                       num_layers=2,batch_first=True),
@@ -144,9 +144,11 @@ class rnn_models(pl.LightningModule):
         loss = F.binary_cross_entropy(y_hat, y.float())
         F1 = self.train_F1(y_hat, y.long())
         auroc = self.train_AUROC(y_hat, y.long())
+        acc = self.train_ACC(y_hat, y.long())
         self.log('train_loss', loss)
         self.log('train_f1', self.train_F1)
         self.log('train_AUROC', self.train_AUROC)
+        self.log('train_ACC', self.train_ACC)
         return loss
 
     def validation_step(self, val_batch, batch_idx):
@@ -159,9 +161,11 @@ class rnn_models(pl.LightningModule):
         loss = F.binary_cross_entropy(y_hat, y.float())
         self.val_F1(y_hat, y.long())
         self.val_AUROC(y_hat, y.long())
+        self.val_ACC(y_hat, y.long())
         self.log('val_loss', loss)
         self.log('val_F1', self.val_F1)
         self.log('val_AUROC', self.val_AUROC)
+        self.log('val_ACC', self.val_ACC)
     
     def test_step(self, test_batch, batch_idx):
         x, y = test_batch
@@ -173,9 +177,11 @@ class rnn_models(pl.LightningModule):
         loss = F.binary_cross_entropy(y_hat, y.float())
         self.test_F1(y_hat, y.long())
         self.test_AUROC(y_hat, y.long())
+        self.test_ACC(y_hat, y.long())
         self.log('test_loss', loss)
         self.log('test_F1', self.test_F1)
         self.log('test_AUROC', self.test_AUROC)
+        self.log('test_ACC', self.test_ACC)
         
 ################
 if __name__ == '__main__':
@@ -188,7 +194,7 @@ if __name__ == '__main__':
 
     
     
-    train_dl, val_dl, test_dl = get_kmer_dls(csv_name, kmer_size, 41, seq_col, label_col)
+    train_dl, val_dl, test_dl = get_kmer_dls(csv_name, kmer_size, global_seed, seq_col, label_col)
     
 
     ####  hyper-params  ####
@@ -196,15 +202,17 @@ if __name__ == '__main__':
     # dims = [Input_length] + hidden + [1]
     
     model = rnn_models(kmer_size, hidden)
-    default_root_dir="/ssd/users/wergillius/Project/MTtrans/evaluation/Kmer_results"
+    default_root_dir="/data/users/wergillius/UTR_VAE/pth/Kmer_Alan"
+    # default_root_dir="/ssd/users/wergillius/Project/MTtrans/evaluation/Kmer_results"
     data_name = os.path.basename(csv_name).split("_")[0]
     log_dir = os.path.join(default_root_dir, f"{data_name}_K{kmer_size}H{hidden}_sd{global_seed}")
     ################
 
     # training
-    trainer = pl.Trainer(accelerator='gpu', devices="1,3", auto_select_gpus=False,
-                         default_root_dir=log_dir, 
+    trainer = pl.Trainer(accelerator='gpu',devices=1, auto_select_gpus=False, # 
+                         default_root_dir=log_dir,  
                          limit_train_batches=0.5, max_epochs=600, 
+                         #plugins=pl.plugins.DDPPlugin(find_unused_parameters=False),
                          callbacks=[
                             callbacks.ModelCheckpoint(monitor="val_loss",save_top_k=1),
                             callbacks.EarlyStopping(monitor="val_F1", mode="min", patience=15)                                    

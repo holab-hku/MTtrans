@@ -34,7 +34,7 @@ if POPEN.kfold_cv:
     if args.kfold_index is None:
         raise NotImplementedError("please specify the kfold index to perform K fold cross validation")
     POPEN.vae_log_path = POPEN.vae_log_path.replace(".log","_cv%d.log"%args.kfold_index)
-    POPEN.vae_pth_path = POPEN.vae_pth_path.replace(".pth","_cv%d.pth"%args.kfold_index)
+    #POPEN.vae_pth_path = POPEN.vae_pth_path.replace(".pth","_cv%d.pth"%args.kfold_index)
     
 
 # Run name
@@ -69,18 +69,19 @@ for task in POPEN.cycle_set:
         datapopen.csv_path = base_csv.replace("cycle",task)
         datapopen.kfold_index = args.kfold_index
         datapopen.pad_to = POPEN.pad_to
+        datapopen.aux_task_columns = POPEN.aux_task_columns
         datapopen.other_input_columns = POPEN.other_input_columns
         datapopen.n_covar = POPEN.n_covar
-        n_covar_dict[task] = datapopen.n_covar
 
     elif (task in ['pcr3', '293']):
         datapopen = Auto_popen('log/Backbone/RL_hard_share/karollus_RPs/rp_cycle.ini')
         datapopen.csv_path = base_csv.replace("cycle",task)
         datapopen.kfold_index = args.kfold_index
+        datapopen.aux_task_columns = POPEN.aux_task_columns
         datapopen.other_input_columns = POPEN.other_input_columns
         datapopen.pad_to = POPEN.pad_to
         datapopen.n_covar = POPEN.n_covar
-        n_covar_dict[task] = datapopen.n_covar
+    datapopen.shuffle = False
     loader_set[task] = reader.get_dataloader(datapopen)
 
 POPEN.n_covar = n_covar_dict
@@ -95,6 +96,9 @@ if POPEN.pretrain_pth is not None:
     logger.info("===============================|   pretrain   |===============================")
     logger.info(f" {POPEN.pretrain_pth}")
     pretrain_popen = Auto_popen(os.path.join(utils.script_dir, POPEN.pretrain_pth))
+    if not os.path.exists(pretrain_popen.vae_pth_path):
+        if type(args.kfold_index) == int:
+            pretrain_popen.kfold_index = args.kfold_index
     pretrain_model = torch.load(pretrain_popen.vae_pth_path, map_location=torch.device('cpu'))['state_dict']
 
     
@@ -113,19 +117,25 @@ if POPEN.pretrain_pth is not None:
         
     elif POPEN.modual_to_fix is not None:
         # POPEN.model_type != pretrain_popen.model_type
+        
         model = POPEN.Model_Class(*POPEN.model_args)
         for modual in POPEN.modual_to_fix:
             if modual in dir(pretrain_model):    
                 eval(f'model.{modual}').load_state_dict(
                     eval(f'model.{modual}').state_dict()
                     )
-        model =  model.to(device)
-        
-    else:
-        # two different class -> Enc_n_Down
-        downstream_model = POPEN.Model_Class(*POPEN.model_args)
-        # merge 
-        model = MTL_models.Enc_n_Down(pretrain_model,downstream_model).to(device)
+
+        state_dict = {'epoch': 0,
+                        'validation_acc': 0,
+                        'state_dict': model.to('cpu'),
+                        'validation_loss': 0}
+        shared_pretrain_pth = POPEN.vae_pth_path.replace(f"_cv{args.kfold_index}", '')
+        if not os.path.exists(shared_pretrain_pth):
+            utils.snapshot(shared_pretrain_pth, state_dict)
+        utils.snapshot(POPEN.vae_pth_path, state_dict)
+
+        model = torch.load(POPEN.vae_pth_path, map_location=torch.device('cpu')) 
+        model = model.to(device)
     
 # -- end2end -- 
 elif POPEN.model_type == "CrossStitch_Model":

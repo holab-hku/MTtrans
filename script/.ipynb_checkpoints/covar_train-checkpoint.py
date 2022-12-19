@@ -96,9 +96,6 @@ if POPEN.pretrain_pth is not None:
     logger.info("===============================|   pretrain   |===============================")
     logger.info(f" {POPEN.pretrain_pth}")
     pretrain_popen = Auto_popen(os.path.join(utils.script_dir, POPEN.pretrain_pth))
-    if not os.path.exists(pretrain_popen.vae_pth_path):
-        if type(args.kfold_index) == int:
-            pretrain_popen.kfold_index = args.kfold_index
     pretrain_model = torch.load(pretrain_popen.vae_pth_path, map_location=torch.device('cpu'))['state_dict']
 
     
@@ -117,25 +114,19 @@ if POPEN.pretrain_pth is not None:
         
     elif POPEN.modual_to_fix is not None:
         # POPEN.model_type != pretrain_popen.model_type
-        
         model = POPEN.Model_Class(*POPEN.model_args)
         for modual in POPEN.modual_to_fix:
             if modual in dir(pretrain_model):    
                 eval(f'model.{modual}').load_state_dict(
                     eval(f'model.{modual}').state_dict()
                     )
-
-        state_dict = {'epoch': 0,
-                        'validation_acc': 0,
-                        'state_dict': model.to('cpu'),
-                        'validation_loss': 0}
-        shared_pretrain_pth = POPEN.vae_pth_path.replace(f"_cv{args.kfold_index}", '')
-        if not os.path.exists(shared_pretrain_pth):
-            utils.snapshot(shared_pretrain_pth, state_dict)
-        utils.snapshot(POPEN.vae_pth_path, state_dict)
-
-        model = torch.load(POPEN.vae_pth_path, map_location=torch.device('cpu')) 
-        model = model.to(device)
+        model =  model.to(device)
+        
+    else:
+        # two different class -> Enc_n_Down
+        downstream_model = POPEN.Model_Class(*POPEN.model_args)
+        # merge 
+        model = MTL_models.Enc_n_Down(pretrain_model,downstream_model).to(device)
     
 # -- end2end -- 
 else:
@@ -179,25 +170,65 @@ best_epoch = 0
 previous_epoch = 0
 if POPEN.Resumable:
     previous_epoch,best_loss,best_acc = utils.resume(POPEN, optimizer,logger)
-    epoch = previous_epoch
     
 
 #                               |=====================================|
-#                               |==========  test  part ==========|
+#                               |==========  training  part ==========|
 #                               |=====================================|
-
+for epoch in range(POPEN.max_epoch-previous_epoch+1):
+    epoch += previous_epoch
     
-
-logger.info("===============================| testing  |===============================")
-verbose_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch, which_set=2)
-# matching task performance influence what to save
+    #          
+    logger.info("===============================|    epoch {}   |===============================".format(epoch))
 
 
+    train_val.iter_train(loader_set,model=model,optimizer=optimizer,popen=POPEN,epoch=epoch)
 
-if np.any(['r2' in key for key in verbose_dict.keys()]):
-    val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'r2' in key])
-    acc_dict = {f"cv{args.kfold_index}_{key}":values for key, values in verbose_dict.items() if 'r2' in key}
-else:
-    val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'acc' in key])
-    acc_dict = {}
-val_total_loss = verbose_dict['Total']
+    #              -----------| validate |-----------   
+    logger.info("===============================| start validation |===============================")
+    verbose_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch)
+    test_dict = train_val.cycle_validate(loader_set,model,optimizer,popen=POPEN,epoch=epoch, which_set=2)
+
+    if np.any(['r2' in key for key in verbose_dict.keys()]):
+        val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'r2' in key])
+    else:
+        val_avg_acc = np.mean([values for key, values in verbose_dict.items() if 'acc' in key])
+    val_total_loss = verbose_dict['Total']
+    
+    # matching task performance influence what to save
+    
+    
+    DICT ={"ran_epoch":epoch,"n_current_steps":optimizer.n_current_steps,"delta":optimizer.delta} if type(optimizer) == ScheduledOptim else {"ran_epoch":epoch}
+    POPEN.update_ini_file(DICT,logger)
+    
+    
+#    -----------| compare the result |-----------
+    if (best_loss > val_total_loss) :
+        # update best performance
+        best_loss = min(best_loss,val_total_loss)
+        best_acc = max(best_acc,val_avg_acc)
+        best_epoch = epoch
+        
+        # save
+        utils.snapshot(POPEN.vae_pth_path, {
+                    'epoch': epoch + 1,
+                    'validation_acc': val_avg_acc,
+                    # 'state_dict': model.state_dict(),
+                    'state_dict': model,
+                    'validation_loss': val_total_loss,
+                    'optimizer': optimizer.state_dict(),
+                })
+        
+        # update the popen
+        POPEN.update_ini_file({'run_name':run_name,
+                            "ran_epoch":epoch,
+                            "best_acc":best_acc},
+                            logger)
+        
+    elif (epoch - best_epoch >= 30)&((type(optimizer) == ScheduledOptim)):
+        optimizer.increase_delta()
+        
+    elif (epoch - best_epoch >= 60)&(epoch > POPEN.max_epoch/2):
+        # at the late phase of training
+        logger.info("<<<<<<<<<<< Early Stopping >>>>>>>>>>")
+        break
