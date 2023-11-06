@@ -4,7 +4,7 @@ MTtrans is a multi-task learning framework for integrating translation rate meas
 and the discovery. The shared prepresentation captures common patterns acorss techiniques that are used to discover the robust *cis*-regulatory elements. 
 
 
-<img src="util/graph_abs_300dpi.pdf" width="50%" height="50%" />
+<img src="util/Graphical_sumary.png" width="50%" height="50%" />
 
 
 MTtrans is implemented with [pytorch](https://pytorch.org/).
