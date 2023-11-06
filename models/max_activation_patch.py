@@ -58,13 +58,13 @@ class Maximum_activation_patch(object):
         return  reader.get_dataloader(tmp_popen) 
     
     def load_model(self):
-        if self.kfold_index is not None:
-            base_pth = self.popen.vae_pth_path
-            self.popen.vae_pth_path = base_pth.replace(".pth","_cv%s.pth"%self.kfold_index)
-        
+        # if self.kfold_index is not None:
+        #     base_pth = self.popen.vae_pth_path
+        #     # self.popen.vae_pth_path = base_pth.replace(".pth","_cv%s.pth"%self.kfold_index)
+        self.popen.kfold_index = self.kfold_index
         model = utils.load_model(self.popen, None)
-        if self.kfold_index is not None:
-            self.popen.vae_pth_path = base_pth
+        # if self.kfold_index is not None:
+        #     self.popen.vae_pth_path = base_pth
         return model
     
     def get_filter_param(self, model):
@@ -374,7 +374,7 @@ class Maximum_activation_patch(object):
         n_channel = self.popen.channel_ls[self.layer]
         for i in tqdm(range(n_channel)):
             act, (spr, pr)  = self.activation_density(i, to_print=False, feature_map=None, **kwargs);
-            channel_spearman.append(spr[0])
+            channel_spearman.append(spr)
         return fig, ax, np.array(channel_spearman)
     
     def matrix_to_seq(self, matrix):
@@ -399,8 +399,10 @@ class Maximum_activation_patch(object):
                 success_channel.append(cc)
             except ValueError:
                 continue
-                
-        write_meme(success_channel, motifs ,save_path, filter_prefix)
+        if save_path is None:
+            return motifs, success_channel
+        else:
+            write_meme(success_channel, motifs ,save_path, filter_prefix)
     
     def gradience_scaler(self,array):
         """
@@ -420,6 +422,7 @@ class Maximum_activation_patch(object):
         current_layer = self.layer if starting_layer is None else starting_layer
         model = self.load_model().to(self.popen.cuda_id)
         model.train()
+        model.task = task
         if fm is None:
             fm = self.feature_map
         
@@ -434,9 +437,8 @@ class Maximum_activation_patch(object):
             out=X
             for layer in model.soft_share.encoder[current_layer:]:
                 out = layer(out)
-            Z_t = torch.transpose(out, 1, 2)
-            h_prim,(c1,c2) = model.tower[task][0](Z_t)
-            out = model.tower[task][1](c2)
+
+            out = model.forward_tower(out)
 
             # auto grad
             external_grad = torch.ones_like(out)
@@ -469,23 +471,23 @@ class Maximum_activation_patch(object):
                 
         return (s_index, ch_index, loc_index)
 
-def extract_max_seq_pattern(condition, n_clusters=6, n_patch=3000):
-    pattern = []
-    channel_source = []
-    for channel in np.where(condition)[0]:
+# def extract_max_seq_pattern(condition, n_clusters=6, n_patch=3000):
+#     pattern = []
+#     channel_source = []
+#     for channel in np.where(condition)[0]:
 
-        try:
-            act_patch, flatten_seq, cluster_index = self.within_patch_clustering(channel, n_clusters=n_clusters, to_plot=False,n_patch=n_patch)
-        except ValueError:
-            continue
+#         try:
+#             act_patch, flatten_seq, cluster_index = self.within_patch_clustering(channel, n_clusters=n_clusters, to_plot=False,n_patch=n_patch)
+#         except ValueError:
+#             continue
 
-        for i in range(n_clusters):
-            sub_cluster = act_patch[cluster_index==i]
-            if len(sub_cluster) > 0:
-                matrix = self.sequence_to_matrix(sub_cluster)
-                pattern.append(self.matrix_to_seq(matrix))
-                channel_source.append(channel)
-        return pattern, channel_source
+#         for i in range(n_clusters):
+#             sub_cluster = act_patch[cluster_index==i]
+#             if len(sub_cluster) > 0:
+#                 matrix = self.sequence_to_matrix(sub_cluster)
+#                 pattern.append(self.matrix_to_seq(matrix))
+#                 channel_source.append(channel)
+#         return pattern, channel_source
 
 def sum_occurrance(df, pattern):
     pattern_occurance = []
@@ -555,8 +557,8 @@ class merge_task_map(Maximum_activation_patch):
                 self.n_patch = patches_ls[i]
                 # print(f"{task} n_patch: {self.n_patch}")
             self.df = self.df_dict[task]
-            # region , index , patches
-            r, i, p = super().locate_MA_seq(channel, feature_map=self.feature_map[task])
+            
+            r, i, p = super().locate_MA_seq(channel, feature_map=self.feature_map[task]) #region, index, patches
             regions.append(r)
             indeces[task] = i
             patches.append(p)
@@ -760,3 +762,33 @@ def extract_meme(memepath):
             
     return all_blocks
 
+def PWM_2_consensus(df):
+    base = ['A','C','G','T']
+    consensus = ''
+    for vec in df.values:
+        consensus += base[vec.argmax()]
+    return consensus
+
+def read_tomtom_RBP_out(tomtom_out_path, RBP_meme=None):
+    """
+    tomtom_out_path : str, the path of tomtom outcome, tsv format
+    RBP_meme : str, the meme-suite built-in motifs database, Ray-2013 human
+    """
+    # the last 3 lines are 
+    RBP_df = pd.read_table(tomtom_out_path).iloc[:-3]
+    if RBP_meme is None:
+        RBP_meme = "/ssd/users/wergillius/tool/meme/motif_databases/RNA/Ray2013_rbp_Homo_sapiens.dna_encoded.meme"
+
+    # align the gene symbol to the query motif id
+    with open(RBP_meme, "r") as f:
+        lines = f.readlines()
+        motif_rbp_dict = {}
+        for line in lines:
+            if 'MOTIF' in line:
+                _, RBP_id, Gene_Symbol = line.strip().split()
+                motif_rbp_dict[RBP_id] = Gene_Symbol
+        f.close()
+
+    RBP_df['Gene_Symbol'] = RBP_df['Query_ID'].map(motif_rbp_dict)
+    RBP_df['filters'] = RBP_df['Target_ID'].apply(lambda x: int(x.split("_")[1]))
+    return RBP_df

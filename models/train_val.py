@@ -7,7 +7,7 @@ import logging
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import utils
 import torch
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, spearmanr
 from torch import optim
 from sklearn.metrics import r2_score, f1_score, roc_auc_score
 from models.ScheduleOptimizer import ScheduledOptim , find_lr
@@ -122,10 +122,12 @@ def validate(dataloader,model,popen,epoch):
 
     if popen.model_type == 'RL_clf':
         metric_dict["F1"] = f1_score(Y_ay, pred_ay>0.5, average='binary')
+        metric_dict["acc"] = np.mean(Y_ay == pred_ay)
         metric_dict["AUROC"] = roc_auc_score(Y_ay, pred_ay)
     else:
-        metric_dict[f"r2"] = r2_score(Y_ay, pred_ay)
-        metric_dict[f"pr"] = pearsonr(Y_ay, pred_ay)[0]
+        metric_dict["r2"] = r2_score(Y_ay, pred_ay)
+        metric_dict["pr"] = pearsonr(Y_ay, pred_ay)[0]
+        metric_dict["spr"] = spearmanr(Y_ay, pred_ay)[0]
     
     verbose_df = pd.json_normalize(verbose_list)
         
@@ -285,6 +287,8 @@ def cycle_validate(loader_dict, model, optimizer, popen, epoch , which_set=1, re
             Y_n_pred[subset] = (Y_ay, pred_ay)
         r2_dict[f"{subset}_r2"] = r2_score(Y_ay, pred_ay)
         r2_dict[f"{subset}_pr"] = pearsonr(Y_ay, pred_ay)[0]
+        r2_dict[f"{subset}_spr"] = spearmanr(Y_ay, pred_ay)[0]
+        
 
           # # average among batch
     

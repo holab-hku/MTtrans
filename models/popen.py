@@ -44,6 +44,16 @@ class Auto_popen(object):
         
         # generate self.model_args
         self.get_model_config()
+        if self.model_type in ["RL_kel"]:
+            self.other_input_columns+=['freq_AAA', 'freq_AAG', 'freq_AAC', 'freq_AAT', 'freq_AGA', 'freq_AGG', 
+                'freq_AGC', 'freq_AGT', 'freq_ACA', 'freq_ACG', 'freq_ACC', 'freq_ACT', 'freq_ATA', 'freq_ATG', 
+                    'freq_ATC', 'freq_ATT', 'freq_GAA', 'freq_GAG', 'freq_GAC', 'freq_GAT', 'freq_GGA', 'freq_GGG', 
+                    'freq_GGC', 'freq_GGT', 'freq_GCA', 'freq_GCG', 'freq_GCC', 'freq_GCT', 'freq_GTA', 'freq_GTG', 
+                    'freq_GTC', 'freq_GTT', 'freq_CAA', 'freq_CAG', 'freq_CAC', 'freq_CAT', 'freq_CGA', 'freq_CGG', 
+                    'freq_CGC', 'freq_CGT', 'freq_CCA', 'freq_CCG', 'freq_CCC', 'freq_CCT', 'freq_CTA', 'freq_CTG', 
+                    'freq_CTC', 'freq_CTT', 'freq_TAC', 'freq_TAT', 'freq_TGG', 'freq_TGC', 'freq_TGT', 'freq_TCA', 
+                    'freq_TCG', 'freq_TCC', 'freq_TCT', 'freq_TTA', 'freq_TTG', 'freq_TTC', 'freq_TTT']
+
 
     @property
     def vae_pth_path(self):
@@ -92,6 +102,7 @@ class Auto_popen(object):
                     'RL_hard_share':["tower_width","dropout_rate", "activation","cycle_set" ],
                     'RL_covar_reg':["tower_width","dropout_rate", "activation", "n_covar", "cycle_set" ],
                     'RL_covar_intercept':["tower_width","dropout_rate", "activation", "n_covar", "cycle_set" ],
+                    "RL_kel":["tower_width","dropout_rate", "activation", "n_covar", "cycle_set" ],
                     'RL_mish_gru':["tower_width","dropout_rate"],
                     # GP models
                     'GP_net': ['tower_width', 'dropout_rate', 'global_pooling', 'activation', 'cycle_set'],

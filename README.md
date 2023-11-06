@@ -4,7 +4,7 @@ MTtrans is a multi-task learning framework for integrating translation rate meas
 and the discovery. The shared prepresentation captures common patterns acorss techiniques that are used to discover the robust *cis*-regulatory elements. 
 
 
-<img src="util/MTtrans_mark.jpg" width="50%" height="50%" />
+<img src="util/graph_abs_300dpi.pdf" width="50%" height="50%" />
 
 
 MTtrans is implemented with [pytorch](https://pytorch.org/).
@@ -76,6 +76,8 @@ The testing model will automatically save to the "pth_dir", which is `checkpoint
 
 To explore the trained model, we can load in the saved checkpoint to resume the model for later analysis.
 Here we use the testing checkpoint file (end with `.pth`) we just trained as the example.
+
+The checkpoints of all kinds of our MTtrans variant is available at https://figshare.com/articles/dataset/MTtrans_Model_weight/24504154.
 
 ```shell
 # firstly make sure you are in the correct environment

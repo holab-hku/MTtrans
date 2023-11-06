@@ -35,8 +35,14 @@ def get_kmer_input_shape(csv_name, kernel_size):
 def get_kmer_dls(csv_name, kernel_size, seed, seq_col, label_col):
     
     print("seed = %s"%seed)
-    train_df, val_df, test_df = reader.split_DF(csv_name, None, [0.8,0.1,0.1], kfold_cv=True, kfold_index=seed,seed=43)
-    
+    # train_df, val_df, test_df = reader.split_DF(csv_name, None, [0.8,0.1,0.1], kfold_cv=True, kfold_index=seed,seed=43)
+    Seq_df = pd.read_csv(csv_name)
+    if Seq_df[label_col].nunique != 2:
+        subset_index = Seq_df[label_col].isin([0,1])
+        Seq_df = Seq_df[subset_index]
+
+
+    train_df, val_df, test_df = reader.KFold_df_split(Seq_df.reset_index(), seed)
     # dataset
     train_DS = reader.kmer_scan_dataset(train_df, seq_col=seq_col, kmer_size=kernel_size, aux_columns=label_col)
     val_DS = reader.kmer_scan_dataset(val_df, seq_col=seq_col, kmer_size=kernel_size, aux_columns=label_col)
@@ -192,8 +198,6 @@ if __name__ == '__main__':
     seq_col = sys.argv[4]
     label_col = sys.argv[5]
 
-    
-    
     train_dl, val_dl, test_dl = get_kmer_dls(csv_name, kmer_size, global_seed, seq_col, label_col)
     
 
@@ -215,7 +219,7 @@ if __name__ == '__main__':
                          #plugins=pl.plugins.DDPPlugin(find_unused_parameters=False),
                          callbacks=[
                             callbacks.ModelCheckpoint(monitor="val_loss",save_top_k=1),
-                            callbacks.EarlyStopping(monitor="val_F1", mode="min", patience=15)                                    
+                            callbacks.EarlyStopping(monitor="val_F1", mode="max", patience=15)                                    
                          ])
 
    
@@ -237,3 +241,11 @@ if __name__ == '__main__':
     #                  "seq",
     #                  "Binary_10pc",
     #                  "1"
+
+
+    # "/data/users/wergillius/UTR_VAE/Alan_dataset/N600_nAUG_2class.csv",
+    #             "3",
+    #             "64",
+    #             "seq",
+    #             "clf_label",
+    #             "2"

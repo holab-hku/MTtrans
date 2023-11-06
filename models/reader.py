@@ -48,6 +48,39 @@ def one_hot(seq,complementary=False):
             continue      # for nucleotide that are not in A C G T   
     return oh_array 
 
+def PWM_score(seq, pwm, pad_to=None, stride=1, agg_func=np.max):
+    """
+    seq : the target sequence, [str | ndarray], where to look for the occurance of motifs 
+    pwm : position weight matrix of shape n, 4, **['A','C','G','T']
+    agg_func : callable, convert the scores of all windows into single value, or 
+    """
+    # tidy check mat shape
+    if type(seq) == str:
+        one_hot_x = one_hot(seq)
+    elif isinstance(seq, np.ndarray):
+        one_hot_x = seq
+    assert len(one_hot_x.shape) == 2
+    assert len(pwm.shape) == 2
+    if one_hot_x.shape[1] != 4:
+        one_hot_x = one_hot_x.T
+    if pwm.shape[1] != 4:
+        pwm = pwm.T
+    if pad_to is not None:
+        one_hot_x = pad_zeros(one_hot_x, pad_to)
+    
+    # 
+    len_pwm = pwm.shape[0]
+    len_seq = one_hot_x.shape[0]
+    Seq_I = []
+    for i in range(0, len_seq-len_pwm, stride):
+        # stride = 1
+        seqlet_i = one_hot_x[i:i+len_pwm]
+        if seqlet_i.shape[0] == len_pwm:
+            Seq_I.append(seqlet_i.flatten())
+    Seq_I = np.stack(Seq_I)
+    score_I =  Seq_I @ pwm.values.reshape(-1,1)
+    return agg_func(score_I) if agg_func is not None else score_I
+
 def read_bpseq(test_bpseq_path):
     """
     read bpseq file, extract sequence and ptable
@@ -259,7 +292,7 @@ class kmer_scan_dataset(Dataset):
 
         mat = np.zeros((len(self.kmer_lookup), len(seq)-self.k))
         for i in range(0, len(seq)-self.k):
-            seq_let = seq[i:i+self.k]
+            seq_let = seq[i:i+self.k].upper()
             mat[self.kmer_lookup[seq_let], i]  = 1
 
         return mat
@@ -373,7 +406,11 @@ def split_DF(data_path,split_like,ratio, kfold_cv, kfold_index=None,seed=42):
             kfold_index = str(kfold_index) 
             test = full_df.query(f"`{kfold_cv}` == @kfold_index")
             train_val = full_df.query(f"`{kfold_cv}` != @kfold_index")
-            train, val = train_test_split(train_val, test_size=0.05)
+            # chrom "18"
+            # train, val = train_test_split(train_val, test_size=0.05)
+            val_index= "18"
+            val = train_val.query(f"`{kfold_cv}` == @val_index")
+            train = train_val.query(f"`{kfold_cv}` != @val_index")
             df_ls = [train, val, test]
     
     else:
